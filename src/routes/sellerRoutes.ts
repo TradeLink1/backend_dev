@@ -8,8 +8,8 @@ import { protect } from "../middlewares/authMiddleware.js";
 
 const router: Router = Router();
 
-router.get("/profile", protect, getSellerProfile);
-router.put("/profile", protect, updateSellerProfile);
-router.delete("/profile", protect, deleteSellerProfile);
+router.get("/get/profile", protect, getSellerProfile);
+router.put("/edit/profile", protect, updateSellerProfile);
+router.delete("/delete/profile", protect, deleteSellerProfile);
 
 export default router;
