@@ -8,6 +8,8 @@ export interface IUser extends Document {
   phone?: string;
   address?: string;
   role: "user" | "seller" | "admin";
+  resetPasswordToken?: string;
+  resetPasswordExpire?: Date;
   matchPassword(password: string): Promise<boolean>;
 }
 
@@ -42,6 +44,13 @@ const UserSchema: Schema = new Schema<IUser>(
       type: String,
       enum: ["user", "seller", "admin"],
       default: "user",
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpire: {
+      type: Date,
     },
   },
   { timestamps: true }

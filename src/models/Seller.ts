@@ -5,8 +5,8 @@ export interface ISeller extends Document {
   storeName: string;
   description?: string;
   location?: {
-    address: string;
-    coordinates: [number, number];
+    address?: string;
+    coordinates?: [number, number];
   };
   phone?: string;
   email: string;
@@ -31,12 +31,10 @@ const SellerSchema: Schema = new Schema<ISeller>(
     location: {
       address: {
         type: String,
-        required: true,
         trim: true,
       },
       coordinates: {
         type: [Number],
-        required: true,
         index: "2dsphere",
       },
     },
