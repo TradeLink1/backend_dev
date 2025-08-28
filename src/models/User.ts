@@ -10,6 +10,8 @@ export interface IUser extends Document {
   role: "user" | "seller" | "admin";
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
+  isVerified: boolean;
+  verificationToken?: string;
   matchPassword(password: string): Promise<boolean>;
 }
 
@@ -52,13 +54,18 @@ const UserSchema: Schema = new Schema<IUser>(
     resetPasswordExpire: {
       type: Date,
     },
+    isVerified: {
+      type: Boolean,
+      default: false,
+    },
+    verificationToken: String,
   },
   { timestamps: true }
 );
 
 UserSchema.pre<IUser>("save", async function (next) {
   if (!this.isModified("password")) {
-    next();
+    return next();
   }
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);

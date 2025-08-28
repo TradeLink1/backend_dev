@@ -48,6 +48,13 @@ export const register = async (req: AuthRequest, res: Response) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    const verificationToken = crypto.randomBytes(20).toString("hex");
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+
     const user = new User({
       name,
       email,
@@ -55,6 +62,8 @@ export const register = async (req: AuthRequest, res: Response) => {
       phone,
       address,
       role: role === "seller" ? "seller" : "user",
+      verificationToken: hashedToken,
+      isVerified: false,
     });
 
     await user.save();
@@ -77,22 +86,25 @@ export const register = async (req: AuthRequest, res: Response) => {
       await seller.save();
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role },
-      process.env.JWT_SECRET as string,
-      {
-        expiresIn: "1h",
-      }
-    );
+    const verifyUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/api/auth/verify-email/${verificationToken}`;
+
+    const message = `You are receiving this email because you (or someone else) has registered on Tradelink. Please verify your email by clicking this link:\n\n${verifyUrl}\n\nIf you did not request this, please ignore this email.`;
+
+    await sendEmail({
+      email: user.email,
+      subject: "TradeLink Email Verification",
+      message,
+    });
 
     const successMessage =
       role === "seller"
-        ? `${seller?.storeName} registered successfully!`
-        : `${user.name} registered successfully!`;
+        ? `${seller?.storeName} registered successfully!. Please check your email to verify your account.`
+        : `${user.name} registered successfully!. Please check your email to verify your account.`;
 
     res.status(201).json({
       message: successMessage,
-      token,
       userId: user._id,
       sellerId: seller ? seller._id : undefined,
     });
@@ -105,6 +117,70 @@ export const register = async (req: AuthRequest, res: Response) => {
           ? error.message
           : undefined,
     });
+  }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.params;
+
+    const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
+
+    const user = await User.findOne({ verificationToken: hashedToken });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "Invalid or expired verification token" });
+    }
+
+    user.isVerified = true;
+    user.verificationToken = undefined;
+    await user.save();
+
+    res
+      .status(200)
+      .json({ message: "Email verified successfully, Welcome to Tradelink!" });
+  } catch (error) {
+    console.error("Error verifying email:", error);
+    res
+      .status(500)
+      .json({ message: "Internal server error during email verification" });
+  }
+};
+
+export const resendVerification = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (user.isVerified)
+      return res.status(400).json({ message: "Email already verified" });
+
+    const verificationToken = crypto.randomBytes(20).toString("hex");
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(verificationToken)
+      .digest("hex");
+    user.verificationToken = hashedToken;
+    await user.save();
+
+    const verificationUrl = `${req.protocol}://${req.get(
+      "host"
+    )}/api/auth/verify-email/${verificationToken}`;
+
+    await sendEmail({
+      email: user.email,
+      subject: "TradeLink Email Verification",
+      message: `Please verify your email by clicking the link: ${verificationUrl}`,
+    });
+
+    res.status(200).json({ message: "Verification email resent successfully" });
+  } catch (error) {
+    console.error("Error resending verification email:", error);
+    res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -121,6 +197,12 @@ export const login = async (req: Request, res: Response) => {
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
+    }
+
+    if (!user.isVerified) {
+      return res
+        .status(403)
+        .json({ message: "Please verify your email before logging in" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -172,38 +254,6 @@ export const logout = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Logout error:", error);
     res.status(500).json({ error: "Server error during logout" });
-  }
-};
-
-export const changePassword = async (req: AuthRequest, res: Response) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-
-    if (!currentPassword || !newPassword) {
-      return res
-        .status(400)
-        .json({ message: "Current and new passwords are required" });
-    }
-
-    const user = await User.findById(req.user?.id);
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch) {
-      return res.status(400).json({ message: "Current password is incorrect" });
-    }
-
-    user.password = await bcrypt.hash(newPassword, 10);
-    await user.save();
-
-    res.status(200).json({ message: "Password changed successfully" });
-  } catch (error) {
-    console.error("Error changing password:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error during password change" });
   }
 };
 

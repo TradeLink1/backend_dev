@@ -10,6 +10,7 @@ export interface ISeller extends Document {
   };
   phone?: string;
   email: string;
+  logo?: string;
 }
 
 const SellerSchema: Schema = new Schema<ISeller>(
@@ -47,6 +48,10 @@ const SellerSchema: Schema = new Schema<ISeller>(
       required: true,
       trim: true,
       lowercase: true,
+    },
+    logo: {
+      type: String,
+      trim: true,
     },
   },
   {
