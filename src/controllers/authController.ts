@@ -169,7 +169,7 @@ export const resendVerification = async (req: Request, res: Response) => {
 
     const verificationUrl = `${req.protocol}://${req.get(
       "host"
-    )}/verify-email/${verificationToken}`;
+    )}/api/auth/verify-email/${verificationToken}`;
 
     await sendEmail({
       email: user.email,
