@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import User from "../models/User.js";
+import bcrypt from "bcryptjs";
 
 interface AuthRequest extends Request {
   user?: {
@@ -70,34 +71,32 @@ export const deleteUserProfile = async (req: AuthRequest, res: Response) => {
 
 export const changePassword = async (req: AuthRequest, res: Response) => {
   try {
-    const { oldPassword, newPassword } = req.body;
+    const { currentPassword, newPassword } = req.body;
 
-    const user = await User.findById(req.user?.id);
-
-    if (!user || !(await user.matchPassword(oldPassword))) {
-      return res.status(401).json({ message: "Invalid credentials" });
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ message: "Current and new passwords are required" });
     }
 
-    user.password = newPassword;
+    const user = await User.findById(req.user?.id);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    user.password = await bcrypt.hash(newPassword, 10);
     await user.save();
 
     res.status(200).json({ message: "Password changed successfully" });
   } catch (error) {
     console.error("Error changing password:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-export const getAllUsers = async (req: AuthRequest, res: Response) => {
-  try {
-    const users = await User.find().select("-password");
-
-    res.status(200).json({
-      message: "Users retrieved successfully",
-      users,
-    });
-  } catch (error) {
-    console.error("Error retrieving users:", error);
-    res.status(500).json({ message: "Server error" });
+    res
+      .status(500)
+      .json({ message: "Internal server error during password change" });
   }
 };
