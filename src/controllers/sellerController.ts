@@ -119,22 +119,35 @@ export const getAllSellers = async (req: AuthRequest, res: Response) => {
 
 export const searchSellers = async (req: AuthRequest, res: Response) => {
   try {
-    const { query } = req.query;
+    const { query, location, category, topRated } = req.query;
 
-    if (!query || typeof query !== "string") {
-      return res.status(400).json({ message: "Search query is required" });
+    // Build filter object dynamically
+    const filter: any = {};
+
+    if (query && typeof query === "string") {
+      filter.storeName = { $regex: query, $options: "i" };
     }
 
-    const sellers = await Seller.find(
-      { storeName: { $regex: query, $options: "i" } },
-      null,
-      { populate: "userId", fields: "name email" }
-    ).populate("userId", "name email");
+    if (location && typeof location === "string") {
+      filter.location = { $regex: location, $options: "i" }; // Assuming Seller has `location`
+    }
+
+    if (category && typeof category === "string") {
+      filter.category = { $regex: category, $options: "i" }; // Assuming Seller has `category`
+    }
+
+    // Base query
+    let sellersQuery = Seller.find(filter).populate("userId", "name email");
+
+    // If topRated flag is set, sort by rating
+    if (topRated === "true") {
+      sellersQuery = sellersQuery.sort({ rating: -1 }); // Assuming Seller has `rating`
+    }
+
+    const sellers = await sellersQuery;
 
     if (!sellers.length) {
-      return res
-        .status(404)
-        .json({ message: "No sellers found matching the query" });
+      return res.status(404).json({ message: "No sellers found matching criteria" });
     }
 
     res.status(200).json({
