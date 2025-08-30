@@ -88,7 +88,7 @@ export const register = async (req: AuthRequest, res: Response) => {
 
     const verifyUrl = `${req.protocol}://${req.get(
       "host"
-    )}/api/auth/verify-email/${verificationToken}`;
+    )}/api/v1/auth/verify-email/${verificationToken}`;
 
     const message = `You are receiving this email because you (or someone else) has registered on Tradelink. Please verify your email by clicking this link:\n\n${verifyUrl}\n\nIf you did not request this, please ignore this email.`;
 
