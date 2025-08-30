@@ -283,7 +283,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
 
     const resetUrl = `${req.protocol}://${req.get(
       "host"
-    )}/reset-password/${resetToken}`;
+    )}/api/v1/auth/reset-password/${resetToken}`;
 
     const message = `You are receiving this email because you (or someone else) has requested a password reset. Please click the following link to reset your password:\n\n${resetUrl}\n\nIf you did not request this, please ignore this email.`;
 
