@@ -1,10 +1,16 @@
 import { Request, Response } from "express";
-import Seller from "../models/Seller.js";
+import Seller, { ISeller } from "../models/Seller.js";
+import User, { IUser } from "../models/User.js";
+
+interface IPopulatedSeller extends Omit<ISeller, "userId"> {
+  userId: IUser;
+}
 
 interface AuthRequest extends Request {
   user?: {
     id: string;
     role: string;
+    email: string;
   };
 }
 
@@ -121,7 +127,6 @@ export const searchSellers = async (req: AuthRequest, res: Response) => {
   try {
     const { query, location, category, topRated } = req.query;
 
-    // Build filter object dynamically
     const filter: any = {};
 
     if (query && typeof query === "string") {
@@ -129,25 +134,25 @@ export const searchSellers = async (req: AuthRequest, res: Response) => {
     }
 
     if (location && typeof location === "string") {
-      filter.location = { $regex: location, $options: "i" }; // Assuming Seller has `location`
+      filter.location = { $regex: location, $options: "i" };
     }
 
     if (category && typeof category === "string") {
-      filter.category = { $regex: category, $options: "i" }; // Assuming Seller has `category`
+      filter.category = { $regex: category, $options: "i" };
     }
 
-    // Base query
     let sellersQuery = Seller.find(filter).populate("userId", "name email");
 
-    // If topRated flag is set, sort by rating
     if (topRated === "true") {
-      sellersQuery = sellersQuery.sort({ rating: -1 }); // Assuming Seller has `rating`
+      sellersQuery = sellersQuery.sort({ rating: -1 });
     }
 
     const sellers = await sellersQuery;
 
     if (!sellers.length) {
-      return res.status(404).json({ message: "No sellers found matching criteria" });
+      return res
+        .status(404)
+        .json({ message: "No sellers found matching criteria" });
     }
 
     res.status(200).json({
@@ -156,6 +161,98 @@ export const searchSellers = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Error searching sellers:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const getCombinedSellerProfile = async (req: Request, res: Response) => {
+  try {
+    const { sellerId } = req.params;
+
+    const seller = await Seller.findById(sellerId).populate(
+      "userId",
+      "name email address phone"
+    );
+
+    if (!seller) {
+      return res.status(404).json({ message: "Seller not found" });
+    }
+
+    const populatedSeller = seller as unknown as IPopulatedSeller;
+
+    const combinedProfile = {
+      _id: populatedSeller._id,
+      storeName: populatedSeller.storeName,
+      description: populatedSeller.description,
+      logo: populatedSeller.logo,
+      businessCategory: populatedSeller.businessCategory,
+      location: populatedSeller.location,
+      phone: populatedSeller.phone,
+      email: populatedSeller.email,
+      user: {
+        _id: populatedSeller.userId._id,
+        name: populatedSeller.userId.name,
+        address: populatedSeller.userId.address,
+      },
+    };
+
+    res.status(200).json({
+      message: "Seller profile retrieved successfully",
+      seller: combinedProfile,
+    });
+  } catch (error) {
+    console.error("Error retrieving seller profile:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const createOrUpdateFullSellerProfile = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const { storeName, description, location, phone, businessCategory } =
+      req.body;
+    let logoPath = null;
+
+    if (req.file) {
+      logoPath = `uploads/logos/${req.file.filename}`;
+    }
+
+    const sellerData = {
+      storeName,
+      description,
+      location,
+      phone,
+      businessCategory,
+      logo: logoPath,
+    };
+
+    let seller = await Seller.findOne({ userId: req.user?.id });
+
+    if (!seller) {
+      seller = new Seller({
+        userId: req.user?.id,
+        ...sellerData,
+        email: req.user?.email,
+      });
+      await seller.save();
+      return res
+        .status(201)
+        .json({ message: "Seller profile created successfully", seller });
+    } else {
+      const updatedSeller = await Seller.findOneAndUpdate(
+        { userId: req.user?.id },
+        sellerData,
+        { new: true, runValidators: true }
+      );
+      return res.status(200).json({
+        message: "Seller profile updated successfully",
+        seller: updatedSeller,
+      });
+    }
+  } catch (error) {
+    console.error("Error creating/updating seller profile:", error);
     res.status(500).json({ message: "Server error" });
   }
 };
