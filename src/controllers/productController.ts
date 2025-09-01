@@ -105,7 +105,8 @@ export const getSellerProducts = async (req: Request, res: Response) => {
   try {
     const { sellerId } = req.params;
     const products = await Product.find({ sellerId });
-    res.json(products);
+    // CORRECTED: Wrap the products array in a JSON object
+    res.status(200).json({ products });
   } catch (error) {
     res.status(500).json({ message: "Error fetching seller products", error });
   }
@@ -141,23 +142,5 @@ export const getProductById = async (req: Request, res: Response) => {
     res.json(product);
   } catch (error) {
     res.status(500).json({ message: "Error fetching product", error });
-  }
-};
-
-export const getProductsByUser = async (req: Request, res: Response) => {
-  try {
-    const { userId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
-
-    const products = await Product.find({ userId }).populate(
-      "sellerId",
-      "name email"
-    );
-    res.status(200).json(products);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching user services", error });
   }
 };

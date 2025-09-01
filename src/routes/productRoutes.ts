@@ -6,24 +6,22 @@ import {
   getSellerProducts,
   getAllProducts,
   getProductById,
-  getProductsByUser,
 } from "../controllers/productController.js";
 import { protect } from "../middlewares/authMiddleware.js";
-import { productUpload } from "../middlewares/productUpload.js"; // Import the multer middleware
+import { productUpload } from "../middlewares/productUpload.js";
 
 const router = Router();
 
-// Use the productUpload middleware here
+// Seller Routes
 router.post("/create", protect, productUpload.single("image"), createProduct);
-
+router.get("/seller/:sellerId", getSellerProducts);
 router
   .route("/:productId")
   .put(protect, updateProduct)
   .delete(protect, deleteProduct);
 
-router.get("/seller/:sellerId", getSellerProducts);
-router.get("/user/:userId", getProductsByUser);
-router.get("/", getAllProducts);
+// Public Routes
 router.get("/:productId", getProductById);
+router.get("/", getAllProducts);
 
 export default router;
