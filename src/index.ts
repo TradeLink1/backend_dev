@@ -18,7 +18,7 @@ const PORT: number = parseInt(process.env.PORT as string, 10) || 5000;
 
 app.use(cors());
 app.use(express.json());
-app.use("/uploads", express.static("uploads"));
+// app.use("/uploads", express.static("uploads"));
 
 const __dirname = path.resolve();
 app.use(express.static(path.join(__dirname, "public")));
