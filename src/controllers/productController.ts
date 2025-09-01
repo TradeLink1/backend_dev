@@ -25,7 +25,6 @@ export const createProduct = async (
     const { name, price, category, quantity, description } = req.body;
     let productImg = null;
 
-    // Get the file path from the uploaded file
     if (req.file) {
       productImg = `/uploads/products/${req.file.filename}`;
     }
