@@ -53,8 +53,7 @@ const productSchema = new mongoose.Schema<IProducts>(
     quantity: { type: Number },
     description: { type: String },
     productImg: {
-      type: [String],
-      default: [],
+      type: String,
     },
   },
   { timestamps: true }
