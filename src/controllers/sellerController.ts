@@ -216,7 +216,7 @@ export const createOrUpdateFullSellerProfile = async (
     let logoPath = null;
 
     if (req.file) {
-      logoPath = `uploads/logos/${req.file.filename}`;
+      logoPath = `/uploads/logos/${req.file.filename}`;
     }
 
     const sellerData = {

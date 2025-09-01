@@ -2,15 +2,19 @@ import { Request, Response } from "express";
 import Product from "../models/Product.js";
 import mongoose from "mongoose";
 
-interface AuthRequest extends Request {
+interface AuthRequestWithFile extends Request {
   user?: {
     id: string;
     role: string;
   };
+  file?: Express.Multer.File;
 }
 
 // SELLER: Create Product
-export const createProduct = async (req: AuthRequest, res: Response) => {
+export const createProduct = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
     if (!req.user || req.user.role !== "seller") {
       return res
@@ -19,9 +23,12 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     }
 
     const { name, price, category, quantity, description } = req.body;
+    let productImg = null;
 
-    // We've removed the productImg logic and simply default to an empty array
-    const productImg: string[] = [];
+    // Get the file path from the uploaded file
+    if (req.file) {
+      productImg = `/uploads/products/${req.file.filename}`;
+    }
 
     const product = await Product.create({
       sellerId: req.user.id,
@@ -39,7 +46,7 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
     });
   } catch (error) {
     console.error("Error creating product:", error);
-    res.status(500).json({ message: "Error creating product" });
+    res.status(500).json({ message: "Error creating product", error });
   }
 };
 
