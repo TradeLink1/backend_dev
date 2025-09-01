@@ -2,10 +2,10 @@ import mongoose, { Document } from "mongoose";
 
 export interface IProducts extends Document {
   sellerId: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
   name: string;
-  price: number; 
-  category:
+  price: number;
+  category?:
     | "Groceries & Essentials"
     | "Fresh & Perishables"
     | "Fashion & Clothing"
@@ -17,14 +17,21 @@ export interface IProducts extends Document {
     | "Toys, Baby & Kids"
     | "Sports & Fitness"
     | "Books, Stationery & Office";
-  quantity: number;
-  description: string;
+  quantity?: number;
+  description?: string;
+  productImg?: string;
 }
 
 const productSchema = new mongoose.Schema<IProducts>(
   {
-    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    userId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     name: { type: String, required: true },
     price: { type: Number, required: true },
     category: {
@@ -40,12 +47,15 @@ const productSchema = new mongoose.Schema<IProducts>(
         "Health & Beauty",
         "Toys, Baby & Kids",
         "Sports & Fitness",
-        "Books, Stationery & Office"
+        "Books, Stationery & Office",
       ],
-      required: true,
     },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number },
     description: { type: String },
+    productImg: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );
