@@ -4,7 +4,7 @@ import mongoose from "mongoose";
 
 interface AuthRequest extends Request {
   user?: {
-    id: string; 
+    id: string;
     role: string;
   };
 }
@@ -16,16 +16,24 @@ export const createProduct = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { name, price, category, quantity, description, userId } = req.body;
+    if (req.user.role !== "seller") {
+      return res
+        .status(403)
+        .json({ message: "Only sellers can post products" });
+    }
+
+    const { name, price, category, quantity, description, userId, productImg } =
+      req.body;
 
     const product = await Product.create({
-      sellerId: req.user.id, 
-      userId,
+      sellerId: req.user.id,
+      userId: userId || undefined,
       name,
       price,
       category,
       quantity,
       description,
+      productImg: productImg || [],
     });
 
     res.status(201).json(product);
@@ -131,7 +139,10 @@ export const getProductsByUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
-    const products = await Product.find({ userId }).populate("sellerId", "name email");
+    const products = await Product.find({ userId }).populate(
+      "sellerId",
+      "name email"
+    );
     res.status(200).json(products);
   } catch (error) {
     res.status(500).json({ message: "Error fetching user services", error });
