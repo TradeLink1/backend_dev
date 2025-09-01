@@ -7,13 +7,16 @@ import mongoose from "mongoose";
  */
 export const createService = async (req: Request, res: Response) => {
   try {
-    const { name, price, category, quantity, description, userId } = req.body;
+    const { name, price, category, quantity, description, userId, serviceImg } =
+      req.body;
 
     // Assume seller is authenticated user
-    const sellerId = (req as any).user?._id;  
+    const sellerId = (req as any).user?._id;
 
     if (!sellerId) {
-      return res.status(401).json({ message: "Unauthorized: Seller not found" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: Seller not found" });
     }
 
     const newService = new Service({
@@ -24,6 +27,7 @@ export const createService = async (req: Request, res: Response) => {
       category,
       quantity,
       description,
+      serviceImg: serviceImg || [],
     });
 
     const savedService = await newService.save();
@@ -38,7 +42,10 @@ export const createService = async (req: Request, res: Response) => {
  */
 export const getServices = async (req: Request, res: Response) => {
   try {
-    const services = await Service.find().populate("sellerId userId", "name email");
+    const services = await Service.find().populate(
+      "sellerId userId",
+      "name email"
+    );
     res.status(200).json(services);
   } catch (error) {
     res.status(500).json({ message: "Error fetching services", error });
@@ -56,7 +63,10 @@ export const getServiceById = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid service ID" });
     }
 
-    const service = await Service.findById(id).populate("sellerId userId", "name email");
+    const service = await Service.findById(id).populate(
+      "sellerId userId",
+      "name email"
+    );
     if (!service) {
       return res.status(404).json({ message: "Service not found" });
     }
@@ -78,7 +88,9 @@ export const updateService = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid service ID" });
     }
 
-    const updatedService = await Service.findByIdAndUpdate(id, req.body, { new: true });
+    const updatedService = await Service.findByIdAndUpdate(id, req.body, {
+      new: true,
+    });
     if (!updatedService) {
       return res.status(404).json({ message: "Service not found" });
     }
@@ -122,7 +134,10 @@ export const getServicesBySeller = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid seller ID" });
     }
 
-    const services = await Service.find({ sellerId }).populate("userId", "name email");
+    const services = await Service.find({ sellerId }).populate(
+      "userId",
+      "name email"
+    );
     res.status(200).json(services);
   } catch (error) {
     res.status(500).json({ message: "Error fetching seller services", error });
@@ -140,7 +155,10 @@ export const getServicesByUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid user ID" });
     }
 
-    const services = await Service.find({ userId }).populate("sellerId", "name email");
+    const services = await Service.find({ userId }).populate(
+      "sellerId",
+      "name email"
+    );
     res.status(200).json(services);
   } catch (error) {
     res.status(500).json({ message: "Error fetching user services", error });

@@ -2,52 +2,60 @@ import mongoose, { Document } from "mongoose";
 
 export interface IServices extends Document {
   sellerId: mongoose.Types.ObjectId;
-  userId: mongoose.Types.ObjectId;
+  userId?: mongoose.Types.ObjectId;
   name: string;
-  price: number; 
+  price: number;
   category:
-      | "Hair Stylist"
-      | "Fashion Designer"
-      | "Caterer"
-      | "Plumber"
-      | "Mechanic"
-      | "Photographer"
-      | "Electrician"
-      | "Makeup Artist"
-      | "Barber"
-      | "Cleaner"
-      | "Car Wash"
-      | "Other";
-  quantity: number;
-  description: string;
+    | "Hair Stylist"
+    | "Fashion Designer"
+    | "Caterer"
+    | "Plumber"
+    | "Mechanic"
+    | "Photographer"
+    | "Electrician"
+    | "Makeup Artist"
+    | "Barber"
+    | "Cleaner"
+    | "Car Wash"
+    | "Other";
+  quantity?: number;
+  description?: string;
+  serviceImg?: string;
 }
 
 const serviceSchema = new mongoose.Schema<IServices>(
   {
-    sellerId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    sellerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     name: { type: String, required: true },
     price: { type: Number, required: true },
     category: {
       type: String,
       enum: [
-          "Hair Stylist",
-          "Fashion Designer",
-          "Caterer",
-          "Plumber",
-          "Mechanic",
-          "Photographer",
-          "Electrician",
-          "Makeup Artist",
-          "Barber",
-          "Cleaner",
-          "Car Wash",
-          "Other"
+        "Hair Stylist",
+        "Fashion Designer",
+        "Caterer",
+        "Plumber",
+        "Mechanic",
+        "Photographer",
+        "Electrician",
+        "Makeup Artist",
+        "Barber",
+        "Cleaner",
+        "Car Wash",
+        "Other",
       ],
-      required: true,
     },
-    quantity: { type: Number, required: true },
+    quantity: { type: Number },
     description: { type: String },
+    serviceImg: {
+      type: [String],
+      default: [],
+    },
   },
   { timestamps: true }
 );
