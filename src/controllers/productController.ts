@@ -12,38 +12,42 @@ interface AuthRequest extends Request {
 // SELLER: Create Product
 export const createProduct = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    if (req.user.role !== "seller") {
+    if (!req.user || req.user.role !== "seller") {
       return res
         .status(403)
         .json({ message: "Only sellers can post products" });
     }
 
-    const { name, price, category, quantity, description, userId, productImg } =
-      req.body;
+    const { name, price, category, quantity, description } = req.body;
+
+    // We've removed the productImg logic and simply default to an empty array
+    const productImg: string[] = [];
 
     const product = await Product.create({
       sellerId: req.user.id,
-      userId: userId || undefined,
       name,
       price,
       category,
       quantity,
       description,
-      productImg: productImg || [],
+      productImg,
     });
 
-    res.status(201).json(product);
+    res.status(201).json({
+      message: "Product created successfully",
+      product,
+    });
   } catch (error) {
-    res.status(500).json({ message: "Error creating product", error });
+    console.error("Error creating product:", error);
+    res.status(500).json({ message: "Error creating product" });
   }
 };
 
 // SELLER: Update Product
-export const updateProduct = async (req: AuthRequest, res: Response) => {
+export const updateProduct = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -66,7 +70,10 @@ export const updateProduct = async (req: AuthRequest, res: Response) => {
 };
 
 // SELLER: Delete Product
-export const deleteProduct = async (req: AuthRequest, res: Response) => {
+export const deleteProduct = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });

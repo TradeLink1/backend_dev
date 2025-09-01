@@ -11,13 +11,13 @@ import {
   getProductsByUser,
 } from "../controllers/productController.js";
 import { protect } from "../middlewares/authMiddleware.js";
-import upload from "../middlewares/upload.js"; // Make sure to import multer
+// import upload from "../middlewares/upload.js";
 
 const router = Router();
 
 // ---------------- SELLER ROUTES ----------------
 // Add the upload middleware here, specifically expecting the 'image' field
-router.post("/create", protect, upload.single("image"), createProduct);
+router.post("/create", protect, createProduct);
 router.put("/edit/:productId", protect, updateProduct);
 router.delete("/delete/:productId", protect, deleteProduct); // Fix the delete route
 router.get("/seller/:sellerId", getSellerProducts);
