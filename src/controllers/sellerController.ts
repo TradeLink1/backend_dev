@@ -21,7 +21,7 @@ interface AuthRequestWithFile extends AuthRequest {
 
 export const getSellerProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const seller = await Seller.findOne({ userId: req.params?.id }).populate(
+    const seller = await Seller.findOne({ _id: req.params?.id }).populate(
       "userId",
       "name email"
     );
