@@ -1,166 +1,194 @@
 import { Request, Response } from "express";
 import Service from "../models/Service.js";
 import mongoose from "mongoose";
+import { cloudinary } from "../config/cloudinary.js";
 
-/**
- * Create a new service
- */
-export const createService = async (req: Request, res: Response) => {
+interface AuthRequestWithFile extends Request {
+  user?: {
+    id: string;
+    role: string;
+  };
+  file?: Express.Multer.File;
+}
+
+export const createService = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
-    const { name, price, category, quantity, description, userId, serviceImg } =
-      req.body;
-
-    // Assume seller is authenticated user
-    const sellerId = (req as any).user?._id;
-
-    if (!sellerId) {
+    if (!req.user || req.user.role !== "seller") {
       return res
-        .status(401)
-        .json({ message: "Unauthorized: Seller not found" });
+        .status(403)
+        .json({ message: "Only sellers can post services" });
     }
 
-    const newService = new Service({
-      sellerId,
-      userId,
+    const { name, price, category, quantity, description } = req.body;
+    let serviceImg = null;
+
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "tradelink/services",
+      });
+      serviceImg = result.secure_url;
+    }
+
+    const service = await Service.create({
+      sellerId: req.user.id,
       name,
       price,
       category,
       quantity,
       description,
-      serviceImg: serviceImg || [],
+      serviceImg,
     });
 
-    const savedService = await newService.save();
-    res.status(201).json(savedService);
+    res.status(201).json({
+      message: "Service created successfully",
+      service,
+    });
   } catch (error) {
+    console.error("Error creating service:", error);
     res.status(500).json({ message: "Error creating service", error });
   }
 };
 
-/**
- * Get all services
- */
-export const getServices = async (req: Request, res: Response) => {
+export const updateService = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
-    const services = await Service.find().populate(
-      "sellerId userId",
-      "name email"
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const { serviceId } = req.params;
+    const { name, price, category, quantity, description } = req.body;
+    let serviceImg = null;
+
+    if (req.file) {
+      const oldService = await Service.findOne({ _id: serviceId });
+      if (oldService && oldService.serviceImg) {
+        let imgUrl = Array.isArray(oldService.serviceImg)
+          ? oldService.serviceImg.join("/")
+          : oldService.serviceImg;
+        const publicId = imgUrl.split("/").pop()?.split(".")[0];
+        if (publicId) {
+          await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
+        }
+      }
+
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "tradelink/services",
+      });
+      serviceImg = result.secure_url;
+    }
+
+    // Update the service
+    const service = await Service.findOneAndUpdate(
+      { _id: serviceId, sellerId: req.user.id },
+      {
+        name,
+        price,
+        category,
+        quantity,
+        description,
+        serviceImg: serviceImg || req.body.serviceImg,
+      },
+      { new: true }
     );
-    res.status(200).json(services);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching services", error });
-  }
-};
 
-/**
- * Get service by ID
- */
-export const getServiceById = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
+    if (!service) return res.status(404).json({ message: "Service not found" });
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid service ID" });
-    }
-
-    const service = await Service.findById(id).populate(
-      "sellerId userId",
-      "name email"
-    );
-    if (!service) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    res.status(200).json(service);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching service", error });
-  }
-};
-
-/**
- * Update a service
- */
-export const updateService = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid service ID" });
-    }
-
-    const updatedService = await Service.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
-    if (!updatedService) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    res.status(200).json(updatedService);
+    res.json(service);
   } catch (error) {
     res.status(500).json({ message: "Error updating service", error });
   }
 };
 
-/**
- * Delete a service
- */
-export const deleteService = async (req: Request, res: Response) => {
+export const deleteService = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
-    const { id } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid service ID" });
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const deletedService = await Service.findByIdAndDelete(id);
-    if (!deletedService) {
-      return res.status(404).json({ message: "Service not found" });
+    const { serviceId } = req.params;
+
+    const service = await Service.findOneAndDelete({
+      _id: serviceId,
+      sellerId: req.user.id,
+    });
+
+    if (!service) return res.status(404).json({ message: "Service not found" });
+
+    if (service.serviceImg) {
+      const imgUrl = Array.isArray(service.serviceImg)
+        ? service.serviceImg.join("/")
+        : service.serviceImg;
+      const lastSegment = imgUrl.split("/").pop();
+      const publicId = lastSegment ? lastSegment.split(".")[0] : undefined;
+      if (publicId) {
+        await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
+      }
     }
 
-    res.status(200).json({ message: "Service deleted successfully" });
+    res.json({ message: "Service deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Error deleting service", error });
   }
 };
 
-/**
- * Get services by Seller
- */
-export const getServicesBySeller = async (req: Request, res: Response) => {
+export const getSellerServices = async (req: Request, res: Response) => {
   try {
     const { sellerId } = req.params;
 
     if (!mongoose.Types.ObjectId.isValid(sellerId)) {
-      return res.status(400).json({ message: "Invalid seller ID" });
+      return res.status(400).json({ message: "Invalid seller ID format" });
     }
 
-    const services = await Service.find({ sellerId }).populate(
-      "userId",
-      "name email"
-    );
-    res.status(200).json(services);
+    const services = await Service.find({ sellerId });
+
+    res.status(200).json({ services });
   } catch (error) {
     res.status(500).json({ message: "Error fetching seller services", error });
   }
 };
 
 /**
- * Get services by User
+ * USER: Get All Services with filtering, searching, and pricing
  */
-export const getServicesByUser = async (req: Request, res: Response) => {
+export const getAllServices = async (req: Request, res: Response) => {
   try {
-    const { userId } = req.params;
+    const { category, search, minPrice, maxPrice } = req.query;
+    const query: any = {};
 
-    if (!mongoose.Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
+    if (category) query.category = category;
+    if (search) query.name = { $regex: search, $options: "i" };
+    if (minPrice || maxPrice) {
+      query.price = {};
+      if (minPrice) query.price.$gte = Number(minPrice);
+      if (maxPrice) query.price.$lte = Number(maxPrice);
     }
 
-    const services = await Service.find({ userId }).populate(
-      "sellerId",
-      "name email"
-    );
-    res.status(200).json(services);
+    const services = await Service.find(query);
+    res.json(services);
   } catch (error) {
-    res.status(500).json({ message: "Error fetching user services", error });
+    res.status(500).json({ message: "Error fetching services", error });
+  }
+};
+
+/**
+ * USER: Get Service by ID
+ */
+export const getServiceById = async (req: Request, res: Response) => {
+  try {
+    const { serviceId } = req.params;
+    const service = await Service.findById(serviceId);
+    if (!service) return res.status(404).json({ message: "Service not found" });
+    res.json(service);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching service", error });
   }
 };

@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Product from "../models/Product.js";
 import mongoose from "mongoose";
+import { cloudinary } from "../config/cloudinary.js";
 
 interface AuthRequestWithFile extends Request {
   user?: {
@@ -25,8 +26,12 @@ export const createProduct = async (
     const { name, price, category, quantity, description } = req.body;
     let productImg = null;
 
+    // Use Cloudinary to upload the image
     if (req.file) {
-      productImg = `/uploads/products/${req.file.filename}`;
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "tradelink/products", // This will create a 'products' folder in your Cloudinary account
+      });
+      productImg = result.secure_url; // Get the secure URL from the response
     }
 
     const product = await Product.create({
@@ -38,6 +43,9 @@ export const createProduct = async (
       description,
       productImg,
     });
+
+    // You can also delete the temporary file from the server after upload if you want
+    // fs.unlinkSync(req.file.path);
 
     res.status(201).json({
       message: "Product created successfully",
@@ -101,11 +109,17 @@ export const deleteProduct = async (
 };
 
 // SELLER: Get All Products of a Seller
+
 export const getSellerProducts = async (req: Request, res: Response) => {
   try {
     const { sellerId } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
+      return res.status(400).json({ message: "Invalid seller ID format" });
+    }
+
     const products = await Product.find({ sellerId });
-    // CORRECTED: Wrap the products array in a JSON object
+
     res.status(200).json({ products });
   } catch (error) {
     res.status(500).json({ message: "Error fetching seller products", error });

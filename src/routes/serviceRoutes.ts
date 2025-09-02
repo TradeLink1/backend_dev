@@ -1,26 +1,31 @@
 import { Router } from "express";
 import {
   createService,
-  getServices,
+  getAllServices,
   getServiceById,
   updateService,
   deleteService,
-  getServicesBySeller,
-  getServicesByUser,
+  getSellerServices,
 } from "../controllers/serviceController.js";
 import { protect } from "../middlewares/authMiddleware.js";
+import uploadServiceImages from "../middlewares/servicesUpload.js";
 
 const router = Router();
 
 // ---------------- SELLER ROUTES ----------------
-router.post("/create", protect, createService); // Create a new service
-router.put("/edit/:id", protect, updateService); // Update a service
-router.delete("/delete/:id", protect, deleteService); // Delete a service
-router.get("/seller/:sellerId", getServicesBySeller); // Get services by seller
+// Create a new service with image upload
+router.post("/create", protect, uploadServiceImages, createService);
+// Update a service with optional new image upload
+router.put("/edit/:serviceId", protect, uploadServiceImages, updateService);
+// Delete a service
+router.delete("/delete/:serviceId", protect, deleteService);
+// Get all services by a specific seller
+router.get("/seller/:sellerId", getSellerServices);
 
 // ---------------- USER ROUTES ----------------
-router.get("/all", getServices); // Get all services
-router.get("/get/by/:id", getServiceById); // Get single service by ID
-router.get("/get/user/:userId", getServicesByUser); // Get services by user
+// Get all services with filtering and searching
+router.get("/all", getAllServices);
+// Get a single service by ID
+router.get("/get/by/:serviceId", getServiceById);
 
 export default router;

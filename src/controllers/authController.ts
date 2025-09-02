@@ -234,6 +234,7 @@ export const login = async (req: Request, res: Response) => {
         message: "Login successful",
         token,
         userId: user._id,
+        sellerId: user._id,
         role,
         name,
       });

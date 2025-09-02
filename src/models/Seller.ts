@@ -52,7 +52,7 @@ const SellerSchema: Schema = new Schema<ISeller>(
     },
     logo: {
       type: String,
-      trim: true,
+      required: false,
     },
     businessCategory: {
       type: String,

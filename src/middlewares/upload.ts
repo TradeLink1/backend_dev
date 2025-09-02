@@ -2,9 +2,13 @@ import multer from "multer";
 import path from "path";
 import { Request } from "express";
 
+// Get the absolute path to the root of your project
+const __dirname = path.resolve();
+
 const storage = multer.diskStorage({
   destination: (req: Request, file: Express.Multer.File, cb) => {
-    cb(null, "uploads/logos");
+    // Correct the path to be relative to the public directory
+    cb(null, path.join(__dirname, "public/uploads/logos"));
   },
 
   filename: (req: Request, file: Express.Multer.File, cb) => {

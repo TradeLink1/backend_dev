@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import Seller, { ISeller } from "../models/Seller.js";
 import User, { IUser } from "../models/User.js";
+import { cloudinary } from "../config/cloudinary.js";
 
 interface IPopulatedSeller extends Omit<ISeller, "userId"> {
   userId: IUser;
@@ -12,6 +13,10 @@ interface AuthRequest extends Request {
     role: string;
     email: string;
   };
+}
+
+interface AuthRequestWithFile extends AuthRequest {
+  file?: Express.Multer.File;
 }
 
 export const getSellerProfile = async (req: AuthRequest, res: Response) => {
@@ -207,16 +212,20 @@ export const getCombinedSellerProfile = async (req: Request, res: Response) => {
 };
 
 export const createOrUpdateFullSellerProfile = async (
-  req: AuthRequest,
+  req: AuthRequestWithFile,
   res: Response
 ) => {
   try {
     const { storeName, description, location, phone, businessCategory } =
       req.body;
-    let logoPath = null;
+    let logoUrl = null;
 
     if (req.file) {
-      logoPath = `/uploads/logos/${req.file.filename}`;
+      // Use Cloudinary to upload the logo
+      const result = await cloudinary.uploader.upload(req.file.path, {
+        folder: "tradelink/logos", // Keep your logos organized
+      });
+      logoUrl = result.secure_url;
     }
 
     const sellerData = {
@@ -225,7 +234,7 @@ export const createOrUpdateFullSellerProfile = async (
       location,
       phone,
       businessCategory,
-      logo: logoPath,
+      logo: logoUrl,
     };
 
     let seller = await Seller.findOne({ userId: req.user?.id });
