@@ -92,11 +92,15 @@ export const register = async (req: AuthRequest, res: Response) => {
 
     const message = `You are receiving this email because you (or someone else) has registered on Tradelink. Please verify your email by clicking this link:\n\n${verifyUrl}\n\nIf you did not request this, please ignore this email.`;
 
+    console.log("Attempting to send email to:", user.email);
+
     await sendEmail({
       email: user.email,
       subject: "TradeLink Email Verification",
       message,
     });
+
+    console.log("sendEmail function was called.");
 
     const successMessage =
       role === "seller"
