@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Message from "../models/Message.js";
+import User from "../models/User.js"; // Assuming a User model exists for population
 
 interface AuthRequest extends Request {
   user?: {
@@ -12,15 +13,20 @@ interface AuthRequest extends Request {
 // Send a message
 export const sendMessage = async (req: AuthRequest, res: Response) => {
   try {
-    const { senderId, recipientId, content } = req.body;
+    const { recipientId, content } = req.body;
 
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    // Ensure recipientId is provided and is a valid ObjectId
+    if (!recipientId || !mongoose.Types.ObjectId.isValid(recipientId)) {
+      return res.status(400).json({ message: "Invalid recipient ID" });
+    }
+
     const message = await Message.create({
       senderId: req.user.id,
-      recipientId: req.body.recipientId,
+      recipientId,
       content,
     });
 
@@ -37,10 +43,15 @@ export const sendMessage = async (req: AuthRequest, res: Response) => {
 // Get all messages between logged-in user and another user
 export const getConversation = async (req: AuthRequest, res: Response) => {
   try {
-    const { userId } = req.params; 
+    const { userId } = req.params;
 
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    // Ensure userId is a valid ObjectId
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
     }
 
     const messages = await Message.find({
@@ -67,13 +78,12 @@ export const getUserConversations = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    const userId = new mongoose.Types.ObjectId(req.user.id);
+
     const conversations = await Message.aggregate([
       {
         $match: {
-          $or: [
-            { senderId: new mongoose.Types.ObjectId(req.user.id) },
-            { recipientId: new mongoose.Types.ObjectId(req.user.id) },
-          ],
+          $or: [{ senderId: userId }, { recipientId: userId }],
         },
       },
       { $sort: { createdAt: -1 } },
@@ -81,12 +91,40 @@ export const getUserConversations = async (req: AuthRequest, res: Response) => {
         $group: {
           _id: {
             $cond: [
-              { $eq: ["$senderId", new mongoose.Types.ObjectId(req.user.id)] },
+              { $eq: ["$senderId", userId] },
               "$recipientId",
               "$senderId",
             ],
           },
           lastMessage: { $first: "$$ROOT" },
+        },
+      },
+      // Lookup the user details for the other participant in the conversation
+      {
+        $lookup: {
+          from: "users", // Assuming the users collection is named 'users'
+          localField: "_id",
+          foreignField: "_id",
+          as: "participant",
+        },
+      },
+      {
+        $unwind: "$participant",
+      },
+      // Project to format the output nicely, showing key details
+      {
+        $project: {
+          _id: "$lastMessage._id",
+          content: "$lastMessage.content",
+          senderId: "$lastMessage.senderId",
+          recipientId: "$lastMessage.recipientId",
+          createdAt: "$lastMessage.createdAt",
+          read: "$lastMessage.read",
+          participant: {
+            _id: "$participant._id",
+            username: "$participant.username", // Replace with the actual field for username
+            // Add other user fields you want to display, e.g., 'profilePicture'
+          },
         },
       },
     ]);
@@ -106,19 +144,32 @@ export const markAsRead = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
 
-    const message = await Message.findByIdAndUpdate(
-      messageId,
-      { read: true },
-      { new: true }
-    );
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const message = await Message.findById(messageId);
 
     if (!message) {
       return res.status(404).json({ message: "Message not found" });
     }
 
+    // Authorization check: Only the recipient can mark a message as read
+    if (message.recipientId.toString() !== req.user.id) {
+      return res
+        .status(403)
+        .json({ message: "You are not authorized to perform this action" });
+    }
+
+    const updatedMessage = await Message.findByIdAndUpdate(
+      messageId,
+      { read: true },
+      { new: true }
+    );
+
     res.status(200).json({
       message: "Message marked as read",
-      data: message,
+      data: updatedMessage,
     });
   } catch (error) {
     console.error("Error marking message as read:", error);
@@ -131,11 +182,27 @@ export const deleteMessage = async (req: AuthRequest, res: Response) => {
   try {
     const { messageId } = req.params;
 
-    const message = await Message.findByIdAndDelete(messageId);
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const message = await Message.findById(messageId);
 
     if (!message) {
       return res.status(404).json({ message: "Message not found" });
     }
+
+    // Authorization check: Only the sender or recipient can delete the message
+    if (
+      message.senderId.toString() !== req.user.id &&
+      message.recipientId.toString() !== req.user.id
+    ) {
+      return res
+        .status(403)
+        .json({ message: "You are not authorized to perform this action" });
+    }
+
+    await Message.findByIdAndDelete(messageId);
 
     res.status(200).json({
       message: "Message deleted successfully",

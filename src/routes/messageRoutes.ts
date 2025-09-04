@@ -14,7 +14,8 @@ const router = Router();
 router.post("/send", protect, sendMessage);
 
 // Get all messages between logged-in user and another user
-router.get("/get/all/conversations/:userId", protect, getConversation);
+// Changed the route to be more descriptive of its function
+router.get("/conversation/:userId", protect, getConversation);
 
 // Get all conversations (last message per participant)
 router.get("/get/conversations", protect, getUserConversations);
