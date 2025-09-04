@@ -1,3 +1,4 @@
+// controllers/sellerController.ts
 import { Request, Response } from "express";
 import Seller, { ISeller } from "../models/Seller.js";
 import User, { IUser } from "../models/User.js";
@@ -19,10 +20,10 @@ interface AuthRequestWithFile extends AuthRequest {
   file?: Express.Multer.File;
 }
 
+// ✅ Get seller profile of logged-in user
 export const getSellerProfile = async (req: AuthRequest, res: Response) => {
   try {
-    const seller = await Seller.findOne({ _id: req.params?.id }).populate(
-      // const seller = await Seller.findOne({ userId: req.user?.id }).populate(
+    const seller = await Seller.findOne({ userId: req.user?.id }).populate(
       "userId",
       "name email"
     );
@@ -41,6 +42,7 @@ export const getSellerProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// ✅ Update seller profile (basic fields)
 export const updateSellerProfile = async (req: AuthRequest, res: Response) => {
   try {
     const { storeName, description, location, phone } = req.body;
@@ -65,6 +67,7 @@ export const updateSellerProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// ✅ Delete seller profile
 export const deleteSellerProfile = async (req: AuthRequest, res: Response) => {
   try {
     const seller = await Seller.findOneAndDelete({ userId: req.user?.id });
@@ -82,17 +85,24 @@ export const deleteSellerProfile = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const uploadSellerLogo = async (req: AuthRequest, res: Response) => {
+// ✅ Upload / update seller logo (Cloudinary)
+export const uploadSellerLogo = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
   try {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded" });
     }
 
-    const logoPath = `uploads/logos/${req.file.filename}`;
+    // Upload to Cloudinary
+    const result = await cloudinary.uploader.upload(req.file.path, {
+      folder: "tradelink/logos",
+    });
 
     const seller = await Seller.findOneAndUpdate(
       { userId: req.user?.id },
-      { logo: logoPath, updatedAt: new Date() },
+      { logo: result.secure_url, updatedAt: new Date() },
       { new: true, runValidators: true }
     ).populate("userId", "name email");
 
@@ -102,7 +112,7 @@ export const uploadSellerLogo = async (req: AuthRequest, res: Response) => {
 
     res.status(200).json({
       message: "Seller logo updated successfully",
-      logoUrl: logoPath,
+      logoUrl: result.secure_url,
       seller,
     });
   } catch (error) {
@@ -111,7 +121,8 @@ export const uploadSellerLogo = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const getAllSellers = async (req: AuthRequest, res: Response) => {
+// ✅ Get all sellers (public)
+export const getAllSellers = async (req: Request, res: Response) => {
   try {
     const sellers = await Seller.find().populate("userId", "name email");
 
@@ -129,7 +140,8 @@ export const getAllSellers = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const searchSellers = async (req: AuthRequest, res: Response) => {
+// ✅ Search sellers (by name, location, category, topRated)
+export const searchSellers = async (req: Request, res: Response) => {
   try {
     const { query, location, category, topRated } = req.query;
 
@@ -140,11 +152,11 @@ export const searchSellers = async (req: AuthRequest, res: Response) => {
     }
 
     if (location && typeof location === "string") {
-      filter.location = { $regex: location, $options: "i" };
+      filter["location.address"] = { $regex: location, $options: "i" };
     }
 
     if (category && typeof category === "string") {
-      filter.category = { $regex: category, $options: "i" };
+      filter.businessCategory = { $regex: category, $options: "i" };
     }
 
     let sellersQuery = Seller.find(filter).populate("userId", "name email");
@@ -171,6 +183,7 @@ export const searchSellers = async (req: AuthRequest, res: Response) => {
   }
 };
 
+// ✅ Get a combined seller profile (seller + user info)
 export const getCombinedSellerProfile = async (req: Request, res: Response) => {
   try {
     const { sellerId } = req.params;
@@ -212,6 +225,7 @@ export const getCombinedSellerProfile = async (req: Request, res: Response) => {
   }
 };
 
+// ✅ Create or update seller profile (with optional Cloudinary logo)
 export const createOrUpdateFullSellerProfile = async (
   req: AuthRequestWithFile,
   res: Response
@@ -222,9 +236,8 @@ export const createOrUpdateFullSellerProfile = async (
     let logoUrl = null;
 
     if (req.file) {
-      // Use Cloudinary to upload the logo
       const result = await cloudinary.uploader.upload(req.file.path, {
-        folder: "tradelink/logos", // Keep your logos organized
+        folder: "tradelink/logos",
       });
       logoUrl = result.secure_url;
     }
@@ -235,7 +248,7 @@ export const createOrUpdateFullSellerProfile = async (
       location,
       phone,
       businessCategory,
-      logo: logoUrl,
+      ...(logoUrl && { logo: logoUrl }),
     };
 
     let seller = await Seller.findOne({ userId: req.user?.id });

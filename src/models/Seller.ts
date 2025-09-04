@@ -1,3 +1,4 @@
+// models/Seller.ts
 import mongoose, { Document, Schema } from "mongoose";
 
 export interface ISeller extends Document {
@@ -12,6 +13,8 @@ export interface ISeller extends Document {
   email: string;
   logo?: string;
   businessCategory?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const SellerSchema: Schema = new Schema<ISeller>(
@@ -52,7 +55,6 @@ const SellerSchema: Schema = new Schema<ISeller>(
     },
     logo: {
       type: String,
-      required: false,
     },
     businessCategory: {
       type: String,

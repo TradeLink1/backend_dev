@@ -1,3 +1,4 @@
+// routes/messageRoutes.ts
 import { Router } from "express";
 import {
   sendMessage,
@@ -10,19 +11,39 @@ import { protect } from "../middlewares/authMiddleware.js";
 
 const router = Router();
 
-// Send a new message
-router.post("/send", protect, sendMessage);
+/**
+ * @route   POST /api/v1/messages
+ * @desc    Send a new message
+ * @access  Private
+ */
+router.post("/", protect, sendMessage);
 
-// Get all messages between logged-in user and another user
-router.get("/get/all/conversations/:userId", protect, getConversation);
+/**
+ * @route   GET /api/v1/messages/conversation/:userId
+ * @desc    Get all messages between logged-in user and another user
+ * @access  Private
+ */
+router.get("/conversation/:userId", protect, getConversation);
 
-// Get all conversations (last message per participant)
-router.get("/get/conversations", protect, getUserConversations);
+/**
+ * @route   GET /api/v1/messages
+ * @desc    Get all conversations (last message per participant)
+ * @access  Private
+ */
+router.get("/", protect, getUserConversations);
 
-// Mark a message as read
-router.patch("/read/:messageId", protect, markAsRead);
+/**
+ * @route   PATCH /api/v1/messages/:messageId/read
+ * @desc    Mark a message as read
+ * @access  Private
+ */
+router.patch("/:messageId/read", protect, markAsRead);
 
-// Delete a message
-router.delete("/delete/:messageId", protect, deleteMessage);
+/**
+ * @route   DELETE /api/v1/messages/:messageId
+ * @desc    Delete a message
+ * @access  Private
+ */
+router.delete("/:messageId", protect, deleteMessage);
 
 export default router;

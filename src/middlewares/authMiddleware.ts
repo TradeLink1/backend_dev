@@ -1,48 +1,65 @@
+// middlewares/authMiddleware.ts
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { JwtPayload } from "jsonwebtoken";
 
-interface AuthRequest extends Request {
-  user?: { id: string; role: string };
+export interface AuthUser {
+  id: string;
+  role: string;
 }
 
+export interface AuthRequest extends Request {
+  user?: AuthUser;
+}
+
+// Protect routes (requires valid JWT)
 export const protect = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
 ) => {
-  let token;
+  let token: string | undefined;
 
   if (
     req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer")
+    req.headers.authorization.startsWith("Bearer ")
   ) {
     token = req.headers.authorization.split(" ")[1];
-    try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET as string) as {
-        id: string;
-        role: string;
-      };
-
-      req.user = decoded;
-
-      return next();
-    } catch (error) {
-      console.error("Token verification error:", error);
-      return res.status(401).json({ message: "Invalid or expired token" });
-    }
   }
 
-  return res.status(401).json({ message: "Access denied. No token provided" });
+  if (!token) {
+    return res
+      .status(401)
+      .json({ message: "Access denied. No token provided" });
+  }
+
+  try {
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET as string
+    ) as JwtPayload & AuthUser;
+
+    req.user = { id: decoded.id, role: decoded.role };
+    next();
+  } catch (error) {
+    console.error("JWT verification error:", error);
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
 };
 
+// Role-based access control
 export const permitRoles = (...roles: string[]) => {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!roles.includes(req.user.role)) {
       return res.status(403).json({
         message:
-          "Access denied, You do not have permission to perform this action",
+          "Access denied. You do not have permission to perform this action",
       });
     }
+
     next();
   };
 };

@@ -1,3 +1,4 @@
+// models/Service.ts
 import mongoose, { Document } from "mongoose";
 
 // Corrected interface to match the schema.
