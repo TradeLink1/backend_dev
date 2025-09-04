@@ -8,12 +8,12 @@ import {
   getProductById,
 } from "../controllers/productController.js";
 import { protect } from "../middlewares/authMiddleware.js";
-import { productUpload } from "../middlewares/productUpload.js";
+import productUpload from "../middlewares/productUpload.js";
 
 const router = Router();
 
 // Seller Routes
-router.post("/create", protect, productUpload.single("image"), createProduct);
+router.post("/create", protect, productUpload, createProduct);
 router.get("/seller/:sellerId", getSellerProducts);
 router
   .route("/:productId")

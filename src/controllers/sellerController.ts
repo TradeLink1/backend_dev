@@ -190,7 +190,7 @@ export const getCombinedSellerProfile = async (req: Request, res: Response) => {
       _id: populatedSeller._id,
       storeName: populatedSeller.storeName,
       description: populatedSeller.description,
-      logo: populatedSeller.logo,
+      logo: populatedSeller.storeLogo,
       businessCategory: populatedSeller.businessCategory,
       location: populatedSeller.location,
       phone: populatedSeller.phone,

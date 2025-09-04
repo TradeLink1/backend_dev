@@ -3,19 +3,17 @@ import {
   getSellerProfile,
   updateSellerProfile,
   deleteSellerProfile,
-  uploadSellerLogo,
   getAllSellers,
   searchSellers,
   getCombinedSellerProfile,
   createOrUpdateFullSellerProfile,
 } from "../controllers/sellerController.js";
 import { protect } from "../middlewares/authMiddleware.js";
-import upload from "../middlewares/upload.js";
+import upload from "../middlewares/userLogoUpload.js";
 
 const router: Router = Router();
 router.get("/get/profile/:id", protect, getSellerProfile);
 router.put("/edit/profile", protect, updateSellerProfile);
-router.post("/profile/logo", protect, upload.single("logo"), uploadSellerLogo);
 router.delete("/delete/profile", protect, deleteSellerProfile);
 router.get("/get/all/sellers", protect, getAllSellers);
 router.get("/search", protect, searchSellers);
