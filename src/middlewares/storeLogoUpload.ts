@@ -1,8 +1,8 @@
 import multer from "multer";
 
-const serviceUpload = multer({
+const storeLogoUpload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 },
+  limits: { fileSize: 2 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|webp/;
     const isValid = allowed.test(file.mimetype);
@@ -14,4 +14,4 @@ const serviceUpload = multer({
   },
 });
 
-export default serviceUpload.single("serviceImg");
+export default storeLogoUpload.single("storeLogo");

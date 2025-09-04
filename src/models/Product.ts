@@ -2,7 +2,6 @@ import mongoose, { Document } from "mongoose";
 
 export interface IProducts extends Document {
   sellerId: mongoose.Types.ObjectId;
-  userId?: mongoose.Types.ObjectId;
   name: string;
   price: number;
   category?:
@@ -26,11 +25,7 @@ const productSchema = new mongoose.Schema<IProducts>(
   {
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    userId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Seller",
     },
     name: { type: String, required: true },
     price: { type: Number, required: true },

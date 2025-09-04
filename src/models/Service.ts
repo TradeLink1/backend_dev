@@ -1,8 +1,5 @@
 import mongoose, { Document } from "mongoose";
 
-// Corrected interface to match the schema.
-// A service should not belong to a user directly, but a seller.
-// The `userId` field might be more appropriate for a separate booking or order model.
 export interface IServices extends Document {
   sellerId: mongoose.Types.ObjectId;
   name: string;
@@ -22,14 +19,14 @@ export interface IServices extends Document {
     | "Other";
   quantity?: number;
   description?: string;
-  serviceImg?: string; // Corrected to an array of strings
+  serviceImg?: string;
 }
 
 const serviceSchema = new mongoose.Schema<IServices>(
   {
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
+      ref: "Seller",
     },
     name: { type: String, required: true },
     price: { type: Number, required: true },

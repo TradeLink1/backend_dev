@@ -7,6 +7,7 @@ export interface IUser extends Document {
   password: string;
   phone?: string;
   address?: string;
+  logo?: string;
   role: "user" | "seller" | "admin";
   resetPasswordToken?: string;
   resetPasswordExpire?: Date;
@@ -41,6 +42,10 @@ const UserSchema: Schema = new Schema<IUser>(
     address: {
       type: String,
       trim: true,
+    },
+    logo: {
+      type: String,
+      required: false,
     },
     role: {
       type: String,

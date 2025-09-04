@@ -5,12 +5,13 @@ export interface ISeller extends Document {
   storeName: string;
   description?: string;
   location?: {
-    address?: string;
+    city?: string;
+    state?: string;
     coordinates?: [number, number];
   };
   phone?: string;
   email: string;
-  logo?: string;
+  storeLogo?: string;
   businessCategory?: string;
 }
 
@@ -31,7 +32,11 @@ const SellerSchema: Schema = new Schema<ISeller>(
       trim: true,
     },
     location: {
-      address: {
+      city: {
+        type: String,
+        trim: true,
+      },
+      state: {
         type: String,
         trim: true,
       },
@@ -50,7 +55,7 @@ const SellerSchema: Schema = new Schema<ISeller>(
       trim: true,
       lowercase: true,
     },
-    logo: {
+    storeLogo: {
       type: String,
       required: false,
     },
