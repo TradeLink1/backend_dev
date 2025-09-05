@@ -1,7 +1,7 @@
 // controllers/serviceController.ts
 import { Request, Response } from "express";
-import mongoose from "mongoose";
 import Service from "../models/Service.js";
+import mongoose from "mongoose";
 import { cloudinary } from "../config/cloudinary.js";
 
 interface AuthRequestWithFile extends Request {
@@ -12,6 +12,20 @@ interface AuthRequestWithFile extends Request {
   file?: Express.Multer.File;
 }
 
+// 🔹 Helper: upload buffer to Cloudinary
+const uploadToCloudinary = (fileBuffer: Buffer, folder: string) => {
+  return new Promise<any>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      { folder },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    stream.end(fileBuffer);
+  });
+};
+
 /**
  * Create a new service (Seller only)
  */
@@ -20,7 +34,6 @@ export const createService = async (
   res: Response
 ) => {
   try {
-    // Check if user is authenticated and has seller role
     if (!req.user || req.user.role !== "seller") {
       return res
         .status(403)
@@ -29,12 +42,10 @@ export const createService = async (
 
     const { name, price, category, quantity, description } = req.body;
 
-    // Validate required fields
     if (!name || !price) {
       return res.status(400).json({ message: "Name and price are required" });
     }
 
-    // Validate price is a positive number
     const parsedPrice = Number(price);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       return res
@@ -42,7 +53,6 @@ export const createService = async (
         .json({ message: "Price must be a valid positive number" });
     }
 
-    // Validate category if provided
     if (
       category &&
       ![
@@ -63,21 +73,22 @@ export const createService = async (
       return res.status(400).json({ message: "Invalid category" });
     }
 
-    // Handle image upload
     let serviceImg = null;
+    let serviceImgId = null;
     if (req.file) {
       try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "tradelink/services",
-        });
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          "tradelink/services"
+        );
         serviceImg = result.secure_url;
+        serviceImgId = result.public_id; // store Cloudinary ID
       } catch (uploadError) {
         console.error("Cloudinary upload error:", uploadError);
         return res.status(500).json({ message: "Error uploading image" });
       }
     }
 
-    // Create service
     const service = await Service.create({
       sellerId: req.user.id,
       name,
@@ -86,13 +97,14 @@ export const createService = async (
       quantity: quantity ? Number(quantity) : undefined,
       description,
       serviceImg,
+      serviceImgId, // keep Cloudinary ID for delete
     });
 
     return res.status(201).json({
       message: "Service created successfully",
       service,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating service:", error);
     return res.status(500).json({
       message: "Server error while creating service",
@@ -109,7 +121,6 @@ export const updateService = async (
   res: Response
 ) => {
   try {
-    // Check if user is authenticated
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
@@ -117,17 +128,14 @@ export const updateService = async (
     const { serviceId } = req.params;
     const { name, price, category, quantity, description } = req.body;
 
-    // Validate serviceId
     if (!mongoose.Types.ObjectId.isValid(serviceId)) {
       return res.status(400).json({ message: "Invalid service ID" });
     }
 
-    // Validate required fields
     if (!name || !price) {
       return res.status(400).json({ message: "Name and price are required" });
     }
 
-    // Validate price
     const parsedPrice = Number(price);
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       return res
@@ -135,7 +143,6 @@ export const updateService = async (
         .json({ message: "Price must be a valid positive number" });
     }
 
-    // Validate category if provided
     if (
       category &&
       ![
@@ -156,7 +163,6 @@ export const updateService = async (
       return res.status(400).json({ message: "Invalid category" });
     }
 
-    // Check if service exists and belongs to the seller
     const existingService = await Service.findOne({
       _id: serviceId,
       sellerId: req.user.id,
@@ -167,32 +173,28 @@ export const updateService = async (
       });
     }
 
-    // Handle image upload
     let serviceImg = existingService.serviceImg;
+    let serviceImgId = existingService.serviceImgId;
+
     if (req.file) {
       try {
-        // Delete old image if exists
-        if (existingService.serviceImg) {
-          const publicId = existingService.serviceImg
-            .split("/")
-            .pop()
-            ?.split(".")[0];
-          if (publicId) {
-            await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
-          }
+        // delete old image if exists
+        if (serviceImgId) {
+          await cloudinary.uploader.destroy(serviceImgId);
         }
-        // Upload new image
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "tradelink/services",
-        });
+
+        const result = await uploadToCloudinary(
+          req.file.buffer,
+          "tradelink/services"
+        );
         serviceImg = result.secure_url;
+        serviceImgId = result.public_id;
       } catch (uploadError) {
         console.error("Cloudinary upload error:", uploadError);
         return res.status(500).json({ message: "Error uploading image" });
       }
     }
 
-    // Update service
     const updatedService = await Service.findOneAndUpdate(
       { _id: serviceId, sellerId: req.user.id },
       {
@@ -202,6 +204,7 @@ export const updateService = async (
         quantity: quantity ? Number(quantity) : undefined,
         description,
         serviceImg,
+        serviceImgId,
       },
       { new: true }
     );
@@ -210,7 +213,7 @@ export const updateService = async (
       message: "Service updated successfully",
       service: updatedService,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating service:", error);
     return res.status(500).json({
       message: "Server error while updating service",
@@ -227,19 +230,16 @@ export const deleteService = async (
   res: Response
 ) => {
   try {
-    // Check if user is authenticated
     if (!req.user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
     const { serviceId } = req.params;
 
-    // Validate serviceId
     if (!mongoose.Types.ObjectId.isValid(serviceId)) {
       return res.status(400).json({ message: "Invalid service ID" });
     }
 
-    // Check if service exists and belongs to the seller
     const service = await Service.findOne({
       _id: serviceId,
       sellerId: req.user.id,
@@ -250,23 +250,19 @@ export const deleteService = async (
       });
     }
 
-    // Delete image from Cloudinary if exists
-    if (service.serviceImg) {
-      const publicId = service.serviceImg.split("/").pop()?.split(".")[0];
-      if (publicId) {
-        try {
-          await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
-        } catch (uploadError) {
-          console.error("Cloudinary delete error:", uploadError);
-        }
+    // delete image from Cloudinary
+    if (service.serviceImgId) {
+      try {
+        await cloudinary.uploader.destroy(service.serviceImgId);
+      } catch (uploadError) {
+        console.error("Cloudinary delete error:", uploadError);
       }
     }
 
-    // Delete service
     await Service.deleteOne({ _id: serviceId });
 
     return res.status(200).json({ message: "Service deleted successfully" });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error deleting service:", error);
     return res.status(500).json({
       message: "Server error while deleting service",
@@ -282,7 +278,6 @@ export const getSellerServices = async (req: Request, res: Response) => {
   try {
     const { sellerId } = req.params;
 
-    // Validate sellerId
     if (!mongoose.Types.ObjectId.isValid(sellerId)) {
       return res.status(400).json({ message: "Invalid seller ID" });
     }
@@ -296,7 +291,7 @@ export const getSellerServices = async (req: Request, res: Response) => {
       message: "Services retrieved successfully",
       services,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching seller services:", error);
     return res.status(500).json({
       message: "Server error while fetching seller services",
@@ -313,7 +308,6 @@ export const getAllServices = async (req: Request, res: Response) => {
     const { category, search, minPrice, maxPrice } = req.query;
     const query: any = {};
 
-    // Apply filters
     if (category) {
       if (
         ![
@@ -365,7 +359,7 @@ export const getAllServices = async (req: Request, res: Response) => {
       message: "Services retrieved successfully",
       services,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching services:", error);
     return res.status(500).json({
       message: "Server error while fetching services",
@@ -381,7 +375,6 @@ export const getServiceById = async (req: Request, res: Response) => {
   try {
     const { serviceId } = req.params;
 
-    // Validate serviceId
     if (!mongoose.Types.ObjectId.isValid(serviceId)) {
       return res.status(400).json({ message: "Invalid service ID" });
     }
@@ -398,7 +391,7 @@ export const getServiceById = async (req: Request, res: Response) => {
       message: "Service retrieved successfully",
       service,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching service:", error);
     return res.status(500).json({
       message: "Server error while fetching service",
