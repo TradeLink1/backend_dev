@@ -31,12 +31,19 @@ export const createService = async (
   res: Response
 ) => {
   try {
-    const { name, price, category, duration, description } = req.body;
-
-    const sellerId = req.user?._id;
-    if (!sellerId) {
-      return res.status(401).json({ message: "Not authenticated as a seller" });
+    // ✅ Ensure the user is authenticated
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
     }
+
+    // ✅ Ensure the user is a seller
+    if (req.user.role !== "seller") {
+      return res
+        .status(403)
+        .json({ message: "Only sellers can create services" });
+    }
+
+    const { name, price, category, duration, description } = req.body;
 
     let serviceImgUrl = null;
 
@@ -53,7 +60,7 @@ export const createService = async (
     }
 
     const newService = new Service({
-      sellerId: new mongoose.Types.ObjectId(sellerId),
+      sellerId: new mongoose.Types.ObjectId(req.user._id),
       name,
       price,
       category,
