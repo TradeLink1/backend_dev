@@ -1,8 +1,8 @@
+// controllers/serviceController.ts
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Service from "../models/Service.js";
-import path from "path";
-import fs from "fs";
+import { cloudinary } from "../config/cloudinary.js";
 
 interface AuthRequestWithFile extends Request {
   user?: {
@@ -66,8 +66,15 @@ export const createService = async (
     // Handle image upload
     let serviceImg = null;
     if (req.file) {
-      // Store the relative path to the uploaded file
-      serviceImg = `/uploads/${req.file.filename}`;
+      try {
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: "tradelink/services",
+        });
+        serviceImg = result.secure_url;
+      } catch (uploadError) {
+        console.error("Cloudinary upload error:", uploadError);
+        return res.status(500).json({ message: "Error uploading image" });
+      }
     }
 
     // Create service
@@ -163,19 +170,26 @@ export const updateService = async (
     // Handle image upload
     let serviceImg = existingService.serviceImg;
     if (req.file) {
-      // Delete old image if exists
-      if (existingService.serviceImg) {
-        const oldImagePath = path.join(
-          __dirname,
-          "..",
-          existingService.serviceImg
-        );
-        fs.unlink(oldImagePath, (err: NodeJS.ErrnoException | null) => {
-          if (err) console.error("Error deleting old image:", err);
+      try {
+        // Delete old image if exists
+        if (existingService.serviceImg) {
+          const publicId = existingService.serviceImg
+            .split("/")
+            .pop()
+            ?.split(".")[0];
+          if (publicId) {
+            await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
+          }
+        }
+        // Upload new image
+        const result = await cloudinary.uploader.upload(req.file.path, {
+          folder: "tradelink/services",
         });
+        serviceImg = result.secure_url;
+      } catch (uploadError) {
+        console.error("Cloudinary upload error:", uploadError);
+        return res.status(500).json({ message: "Error uploading image" });
       }
-      // Store new image path
-      serviceImg = `/uploads/${req.file.filename}`;
     }
 
     // Update service
@@ -236,7 +250,17 @@ export const deleteService = async (
       });
     }
 
-    
+    // Delete image from Cloudinary if exists
+    if (service.serviceImg) {
+      const publicId = service.serviceImg.split("/").pop()?.split(".")[0];
+      if (publicId) {
+        try {
+          await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
+        } catch (uploadError) {
+          console.error("Cloudinary delete error:", uploadError);
+        }
+      }
+    }
 
     // Delete service
     await Service.deleteOne({ _id: serviceId });
@@ -312,7 +336,7 @@ export const getAllServices = async (req: Request, res: Response) => {
       query.category = category;
     }
     if (search) {
-      query.name = { $regex: search, $options: "i" }; // Fixed typo: antipsychotics to $options
+      query.name = { $regex: search, $options: "i" };
     }
     if (minPrice || maxPrice) {
       query.price = {};
@@ -332,16 +356,10 @@ export const getAllServices = async (req: Request, res: Response) => {
       }
     }
 
-    // Fetch services and populate sellerId
-    const services = await Service.find(query).populate({
-      path: "sellerId",
-      select: "name email",
-      // Allow population even if some sellerId references are invalid
-      options: { strictPopulate: false },
-    });
-
-    // Log services to debug population
-    console.log("Services fetched:", JSON.stringify(services, null, 2));
+    const services = await Service.find(query).populate(
+      "sellerId",
+      "name email"
+    );
 
     return res.status(200).json({
       message: "Services retrieved successfully",
