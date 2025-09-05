@@ -1,4 +1,3 @@
-// routes/serviceRoutes.ts
 import { Router } from "express";
 import {
   createService,
@@ -14,33 +13,19 @@ import uploadServiceImages from "../middlewares/servicesUpload.js";
 const router = Router();
 
 // ---------------- SELLER ROUTES ----------------
-// Create a new service with optional image upload (requires seller role)
-router.post(
-  "/create",
-  protect,
-  uploadServiceImages, // Expects file in 'serviceImg' field
-  createService
-);
-
-// Update an existing service with optional new image upload (requires seller role)
-router.put(
-  "/edit/:serviceId",
-  protect,
-  uploadServiceImages, // Expects file in 'serviceImg' field
-  updateService
-);
-
-// Delete a service and its associated image (requires seller role)
+// Create a new service with image upload
+router.post("/create", protect, uploadServiceImages, createService);
+// Update a service with optional new image upload
+router.put("/edit/:serviceId", protect, uploadServiceImages, updateService);
+// Delete a service
 router.delete("/delete/:serviceId", protect, deleteService);
-
-// Get all services by a specific seller (public, no auth required)
+// Get all services by a specific seller
 router.get("/seller/:sellerId", getSellerServices);
 
 // ---------------- USER ROUTES ----------------
-// Get all services with optional filtering and searching (public)
+// Get all services with filtering and searching
 router.get("/all", getAllServices);
-
-// Get a single service by ID (public)
+// Get a single service by ID
 router.get("/get/by/:serviceId", getServiceById);
 
 export default router;
