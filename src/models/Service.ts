@@ -19,15 +19,16 @@ export interface IServices extends Document {
     | "Other";
   quantity?: number;
   description?: string;
-  serviceImg?: string;
+  serviceImg?: string; // Cloudinary secure_url
+  serviceImgId?: string; // Cloudinary public_id
 }
 
 const serviceSchema = new mongoose.Schema<IServices>(
   {
     sellerId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Changed from "Seller" to "User"
-      required: true, // Prevent null sellerId
+      ref: "User", // links to User model
+      required: true,
     },
     name: { type: String, required: true },
     price: { type: Number, required: true },
@@ -50,10 +51,8 @@ const serviceSchema = new mongoose.Schema<IServices>(
     },
     quantity: { type: Number },
     description: { type: String },
-    serviceImg: {
-      type: String,
-      required: false,
-    },
+    serviceImg: { type: String }, // Cloudinary secure_url
+    serviceImgId: { type: String }, // Cloudinary public_id
   },
   { timestamps: true }
 );
