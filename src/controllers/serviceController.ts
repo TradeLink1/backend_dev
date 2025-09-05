@@ -1,490 +1,193 @@
-// controllers/serviceController.ts
 import { Request, Response } from "express";
-import mongoose from "mongoose";
-import Service from "../models/Service.js";
-import { v2 as cloudinary } from "cloudinary";
+import Service, { IServices } from "../models/serviceModel";
+import asyncHandler from "express-async-handler";
+import { Types } from "mongoose";
+import cloudinary from "../config/cloudinary";
+import { UploadedFile } from "express-fileupload";
 
-interface AuthRequestWithFile extends Request {
-  user?: {
-    id: string;
-    role: string;
-  };
-  file?: Express.Multer.File; // file added by multer
+// Interface for request with user (from auth middleware)
+interface AuthRequest extends Request {
+  user?: { _id: Types.ObjectId };
 }
 
-// ---------------- CREATE SERVICE ----------------
-export const createService = async (
-  req: AuthRequestWithFile,
-  res: Response
-) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+// Create a new service
+export const createService = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { name, price, category, quantity, description } = req.body;
+  const sellerId = req.user?._id;
 
-    const { name, price, category, quantity, description } = req.body;
-
-    if (!name || !price) {
-      return res.status(400).json({ message: "Name and price are required" });
-    }
-
-    let uploadedImg;
-    if (req.file) {
-      uploadedImg = await cloudinary.uploader.upload(req.file.path, {
-        folder: "tradelink/services",
-      });
-    }
-
-    const newService = await Service.create({
-      sellerId: req.user.id,
-      name,
-      price,
-      category,
-      quantity,
-      description,
-      serviceImg: uploadedImg?.secure_url || null,
-      serviceImgId: uploadedImg?.public_id || null,
-    });
-
-    res.status(201).json({
-      message: "Service created successfully",
-      data: newService,
-    });
-  } catch (error) {
-    console.error("Error creating service:", error);
-    res.status(500).json({ message: "Server error", error });
+  if (!sellerId) {
+    res.status(401);
+    throw new Error("User not authenticated");
   }
-};
 
-
-
-/*export const createService = async (
-  req: AuthRequestWithFile,
-  res: Response
-) => {
-  try {
-    // ✅ Ensure the user is authenticated
-    if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-
-    // ✅ Ensure the user is a seller
-    if (req.user.role !== "seller") {
-      return res
-        .status(403)
-        .json({ message: "Only sellers can create services" });
-    }
-
-    const { name, price, category, duration, description } = req.body;
-
-    let serviceImgUrl = null;
-
-    if (req.file) {
-      const result = await cloudinary.uploader.upload(
-        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
-          "base64"
-        )}`,
-        {
-          folder: "tradelink/services",
-        }
-      );
-      serviceImgUrl = result.secure_url;
-    }
-
-    const newService = new Service({
-      sellerId: new mongoose.Types.ObjectId(req.user._id),
-      name,
-      price,
-      category,
-      duration,
-      description,
-      serviceImg: serviceImgUrl,
-    });
-
-    const savedService = await newService.save();
-
-    res.status(201).json({
-      success: true,
-      message: "Service created successfully",
-      service: savedService,
-    });
-  } catch (error) {
-    console.error("Error creating service:", error);
-    res.status(500).json({ message: "Failed to create service" });
+  if (!name || !price) {
+    res.status(400);
+    throw new Error("Name and price are required");
   }
-}; */
 
+  let serviceImg: string | undefined;
+  let serviceImgId: string | undefined;
 
-/**
- * Create a new service (Seller only)
- */
-/*export const createService = async (
-  req: AuthRequestWithFile,
-  res: Response
-) => {
-  try {
-    if (!req.user || req.user.role !== "seller") {
-      return res
-        .status(403)
-        .json({ message: "Only sellers can create services" });
-    }
-
-    const { name, price, category, quantity, description } = req.body;
-
-    if (!name || !price) {
-      return res.status(400).json({ message: "Name and price are required" });
-    }
-
-    const parsedPrice = Number(price);
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      return res
-        .status(400)
-        .json({ message: "Price must be a valid positive number" });
-    }
-
-    if (
-      category &&
-      ![
-        "Hair Stylist",
-        "Fashion Designer",
-        "Caterer",
-        "Plumber",
-        "Mechanic",
-        "Photographer",
-        "Electrician",
-        "Makeup Artist",
-        "Barber",
-        "Cleaner",
-        "Car Wash",
-        "Other",
-      ].includes(category)
-    ) {
-      return res.status(400).json({ message: "Invalid category" });
-    }
-
-    let serviceImg = null;
-    let serviceImgId = null;
-    if (req.file) {
-      try {
-        const result = await uploadToCloudinary(
-          req.file.buffer,
-          "tradelink/services"
-        );
-        serviceImg = result.secure_url;
-        serviceImgId = result.public_id; // store Cloudinary ID
-      } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(500).json({ message: "Error uploading image" });
-      }
-    }
-
-    const service = await Service.create({
-      sellerId: req.user.id,
-      name,
-      price: parsedPrice,
-      category,
-      quantity: quantity ? Number(quantity) : undefined,
-      description,
-      serviceImg,
-      serviceImgId, // keep Cloudinary ID for delete
+  // Handle image upload if present
+  if (req.files && req.files.serviceImg) {
+    const file = req.files.serviceImg as UploadedFile;
+    const result = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: "services",
     });
-
-    return res.status(201).json({
-      message: "Service created successfully",
-      service,
-    });
-  } catch (error: any) {
-    console.error("Error creating service:", error);
-    return res.status(500).json({
-      message: "Server error while creating service",
-      error: error.message,
-    });
+    serviceImg = result.secure_url;
+    serviceImgId = result.public_id;
   }
-}; */
 
-/**
- * Update an existing service (Seller only)
- */
-export const updateService = async (
-  req: AuthRequestWithFile,
-  res: Response
-) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+  const service = await Service.create({
+    sellerId,
+    name,
+    price: Number(price),
+    category,
+    quantity: quantity ? Number(quantity) : undefined,
+    description,
+    serviceImg,
+    serviceImgId,
+  });
 
-    const { serviceId } = req.params;
-    const { name, price, category, quantity, description } = req.body;
+  res.status(201).json({
+    success: true,
+    data: service,
+  });
+});
 
-    if (!mongoose.Types.ObjectId.isValid(serviceId)) {
-      return res.status(400).json({ message: "Invalid service ID" });
-    }
+// Get all services with filtering and searching
+export const getAllServices = asyncHandler(async (req: Request, res: Response) => {
+  const { category, search, minPrice, maxPrice } = req.query;
 
-    if (!name || !price) {
-      return res.status(400).json({ message: "Name and price are required" });
-    }
+  const query: any = {};
 
-    const parsedPrice = Number(price);
-    if (isNaN(parsedPrice) || parsedPrice < 0) {
-      return res
-        .status(400)
-        .json({ message: "Price must be a valid positive number" });
-    }
-
-    if (
-      category &&
-      ![
-        "Hair Stylist",
-        "Fashion Designer",
-        "Caterer",
-        "Plumber",
-        "Mechanic",
-        "Photographer",
-        "Electrician",
-        "Makeup Artist",
-        "Barber",
-        "Cleaner",
-        "Car Wash",
-        "Other",
-      ].includes(category)
-    ) {
-      return res.status(400).json({ message: "Invalid category" });
-    }
-
-    const existingService = await Service.findOne({
-      _id: serviceId,
-      sellerId: req.user.id,
-    });
-    if (!existingService) {
-      return res.status(404).json({
-        message: "Service not found or you are not authorized to update it",
-      });
-    }
-
-    let serviceImg = existingService.serviceImg;
-    let serviceImgId = existingService.serviceImgId;
-
-    if (req.file) {
-      try {
-        // delete old image if exists
-        if (serviceImgId) {
-          await cloudinary.uploader.destroy(serviceImgId);
-        }
-
-        const result = await uploadToCloudinary(
-          req.file.buffer,
-          "tradelink/services"
-        );
-        serviceImg = result.secure_url;
-        serviceImgId = result.public_id;
-      } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(500).json({ message: "Error uploading image" });
-      }
-    }
-
-    const updatedService = await Service.findOneAndUpdate(
-      { _id: serviceId, sellerId: req.user.id },
-      {
-        name,
-        price: parsedPrice,
-        category,
-        quantity: quantity ? Number(quantity) : undefined,
-        description,
-        serviceImg,
-        serviceImgId,
-      },
-      { new: true }
-    );
-
-    return res.status(200).json({
-      message: "Service updated successfully",
-      service: updatedService,
-    });
-  } catch (error: any) {
-    console.error("Error updating service:", error);
-    return res.status(500).json({
-      message: "Server error while updating service",
-      error: error.message,
-    });
+  if (category) query.category = category;
+  if (search) query.name = { $regex: search, $options: "i" };
+  if (minPrice || maxPrice) {
+    query.price = {};
+    if (minPrice) query.price.$gte = Number(minPrice);
+    if (maxPrice) query.price.$lte = Number(maxPrice);
   }
-};
 
-/**
- * Delete a service (Seller only)
- */
-export const deleteService = async (
-  req: AuthRequestWithFile,
-  res: Response
-) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+  const services = await Service.find(query).populate("sellerId", "name email");
+  res.json({
+    success: true,
+    data: services,
+  });
+});
 
-    const { serviceId } = req.params;
+// Get single service by ID
+export const getServiceById = asyncHandler(async (req: Request, res: Response) => {
+  const service = await Service.findById(req.params.serviceId).populate(
+    "sellerId",
+    "name email"
+  );
 
-    if (!mongoose.Types.ObjectId.isValid(serviceId)) {
-      return res.status(400).json({ message: "Invalid service ID" });
-    }
+  if (!service) {
+    res.status(404);
+    throw new Error("Service not found");
+  }
 
-    const service = await Service.findOne({
-      _id: serviceId,
-      sellerId: req.user.id,
-    });
-    if (!service) {
-      return res.status(404).json({
-        message: "Service not found or you are not authorized to delete it",
-      });
-    }
+  res.json({
+    success: true,
+    data: service,
+  });
+});
 
-    // delete image from Cloudinary
+// Update a service
+export const updateService = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { serviceId } = req.params;
+  const { name, price, category, quantity, description } = req.body;
+  const sellerId = req.user?._id;
+
+  const service = await Service.findById(serviceId);
+
+  if (!service) {
+    res.status(404);
+    throw new Error("Service not found");
+  }
+
+  if (service.sellerId.toString() !== sellerId?.toString()) {
+    res.status(403);
+    throw new Error("Not authorized to update this service");
+  }
+
+  // Handle image update if present
+  let serviceImg: string | undefined = service.serviceImg;
+  let serviceImgId: string | undefined = service.serviceImgId;
+
+  if (req.files && req.files.serviceImg) {
+    const file = req.files.serviceImg as UploadedFile;
+    
+    // Delete old image from Cloudinary if exists
     if (service.serviceImgId) {
-      try {
-        await cloudinary.uploader.destroy(service.serviceImgId);
-      } catch (uploadError) {
-        console.error("Cloudinary delete error:", uploadError);
-      }
+      await cloudinary.uploader.destroy(service.serviceImgId);
     }
 
-    await Service.deleteOne({ _id: serviceId });
-
-    return res.status(200).json({ message: "Service deleted successfully" });
-  } catch (error: any) {
-    console.error("Error deleting service:", error);
-    return res.status(500).json({
-      message: "Server error while deleting service",
-      error: error.message,
+    // Upload new image
+    const result = await cloudinary.uploader.upload(file.tempFilePath, {
+      folder: "services",
     });
+    serviceImg = result.secure_url;
+    serviceImgId = result.public_id;
   }
-};
 
-/**
- * Get all services by a specific seller
- */
-export const getSellerServices = async (req: Request, res: Response) => {
-  try {
-    const { sellerId } = req.params;
+  // Update service fields
+  service.name = name || service.name;
+  service.price = price ? Number(price) : service.price;
+  service.category = category || service.category;
+  service.quantity = quantity ? Number(quantity) : service.quantity;
+  service.description = description || service.description;
+  service.serviceImg = serviceImg;
+  service.serviceImgId = serviceImgId;
 
-    if (!mongoose.Types.ObjectId.isValid(sellerId)) {
-      return res.status(400).json({ message: "Invalid seller ID" });
-    }
+  const updatedService = await service.save();
 
-    const services = await Service.find({ sellerId }).populate(
-      "sellerId",
-      "name email"
-    );
+  res.json({
+    success: true,
+    data: updatedService,
+  });
+});
 
-    return res.status(200).json({
-      message: "Services retrieved successfully",
-      services,
-    });
-  } catch (error: any) {
-    console.error("Error fetching seller services:", error);
-    return res.status(500).json({
-      message: "Server error while fetching seller services",
-      error: error.message,
-    });
+// Delete a service
+export const deleteService = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { serviceId } = req.params;
+  const sellerId = req.user?._id;
+
+  const service = await Service.findById(serviceId);
+
+  if (!service) {
+    res.status(404);
+    throw new Error("Service not found");
   }
-};
 
-/**
- * Get all services with filtering and searching
- */
-export const getAllServices = async (req: Request, res: Response) => {
-  try {
-    const { category, search, minPrice, maxPrice } = req.query;
-    const query: any = {};
-
-    if (category) {
-      if (
-        ![
-          "Hair Stylist",
-          "Fashion Designer",
-          "Caterer",
-          "Plumber",
-          "Mechanic",
-          "Photographer",
-          "Electrician",
-          "Makeup Artist",
-          "Barber",
-          "Cleaner",
-          "Car Wash",
-          "Other",
-        ].includes(category as string)
-      ) {
-        return res.status(400).json({ message: "Invalid category" });
-      }
-      query.category = category;
-    }
-    if (search) {
-      query.name = { $regex: search, $options: "i" };
-    }
-    if (minPrice || maxPrice) {
-      query.price = {};
-      if (minPrice) {
-        const parsedMinPrice = Number(minPrice);
-        if (isNaN(parsedMinPrice) || parsedMinPrice < 0) {
-          return res.status(400).json({ message: "Invalid minPrice" });
-        }
-        query.price.$gte = parsedMinPrice;
-      }
-      if (maxPrice) {
-        const parsedMaxPrice = Number(maxPrice);
-        if (isNaN(parsedMaxPrice) || parsedMaxPrice < 0) {
-          return res.status(400).json({ message: "Invalid maxPrice" });
-        }
-        query.price.$lte = parsedMaxPrice;
-      }
-    }
-
-    const services = await Service.find(query).populate(
-      "sellerId",
-      "name email"
-    );
-
-    return res.status(200).json({
-      message: "Services retrieved successfully",
-      services,
-    });
-  } catch (error: any) {
-    console.error("Error fetching services:", error);
-    return res.status(500).json({
-      message: "Server error while fetching services",
-      error: error.message,
-    });
+  if (service.sellerId.toString() !== sellerId?.toString()) {
+    res.status(403);
+    throw new Error("Not authorized to delete this service");
   }
-};
 
-/**
- * Get a single service by ID
- */
-export const getServiceById = async (req: Request, res: Response) => {
-  try {
-    const { serviceId } = req.params;
-
-    if (!mongoose.Types.ObjectId.isValid(serviceId)) {
-      return res.status(400).json({ message: "Invalid service ID" });
-    }
-
-    const service = await Service.findById(serviceId).populate(
-      "sellerId",
-      "name email"
-    );
-    if (!service) {
-      return res.status(404).json({ message: "Service not found" });
-    }
-
-    return res.status(200).json({
-      message: "Service retrieved successfully",
-      service,
-    });
-  } catch (error: any) {
-    console.error("Error fetching service:", error);
-    return res.status(500).json({
-      message: "Server error while fetching service",
-      error: error.message,
-    });
+  // Delete image from Cloudinary if exists
+  if (service.serviceImgId) {
+    await cloudinary.uploader.destroy(service.serviceImgId);
   }
-};
+
+  await service.remove();
+
+  res.json({
+    success: true,
+    message: "Service deleted successfully",
+  });
+});
+
+// Get all services by a specific seller
+export const getSellerServices = asyncHandler(async (req: Request, res: Response) => {
+  const services = await Service.find({ sellerId: req.params.sellerId }).populate(
+    "sellerId",
+    "name email"
+  );
+
+  res.json({
+    success: true,
+    data: services,
+  });
+});
