@@ -1,32 +1,81 @@
-// controllers/serviceController.ts
 import { Request, Response } from "express";
-import Service from "../models/Service.js";
 import mongoose from "mongoose";
-import { cloudinary } from "../config/cloudinary.js";
+import { v2 as cloudinary } from "cloudinary";
+import Service from "../models/Service.js";
 
 interface AuthRequestWithFile extends Request {
   user?: {
-    id: string;
+    _id: string;
     role: string;
   };
   file?: Express.Multer.File;
 }
 
-// 🔹 Helper: upload buffer to Cloudinary
-const uploadToCloudinary = (fileBuffer: Buffer, folder: string) => {
-  return new Promise<any>((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder },
-      (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      }
-    );
-    stream.end(fileBuffer);
-  });
+export const createService = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
+  try {
+    // ✅ Authentication + Role check
+    if (!req.user) {
+      return res.status(401).json({ message: "Not authenticated" });
+    }
+    if (req.user.role !== "seller") {
+      return res
+        .status(403)
+        .json({ message: "Only sellers can create services" });
+    }
+
+    const { name, price, category, duration, description } = req.body;
+
+    let serviceImgUrl: string | null = null;
+
+    // ✅ Upload file with stream if exists
+    if (req.file) {
+      serviceImgUrl = await new Promise<string>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder: "tradelink/services" },
+          (error, result) => {
+            if (error) {
+              reject(error);
+            } else if (result) {
+              resolve(result.secure_url);
+            } else {
+              reject(new Error("Cloudinary upload failed with no result"));
+            }
+          }
+        );
+        uploadStream.end(req.file!.buffer); // <-- TS now knows req.file exists here
+      });
+    }
+
+    // ✅ Create service document
+    const newService = new Service({
+      sellerId: new mongoose.Types.ObjectId(req.user._id),
+      name,
+      price,
+      category,
+      duration,
+      description,
+      serviceImg: serviceImgUrl,
+    });
+
+    const savedService = await newService.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Service created successfully",
+      service: savedService,
+    });
+  } catch (error) {
+    console.error("Error creating service:", error);
+    res.status(500).json({ message: "Error creating service", error });
+  }
 };
 
-export const createService = async (
+
+
+/*export const createService = async (
   req: AuthRequestWithFile,
   res: Response
 ) => {
@@ -80,7 +129,7 @@ export const createService = async (
     console.error("Error creating service:", error);
     res.status(500).json({ message: "Failed to create service" });
   }
-};
+}; */
 
 
 /**
