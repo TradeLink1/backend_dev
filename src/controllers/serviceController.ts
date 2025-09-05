@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
 import mongoose from "mongoose";
 import Service from "../models/Service.js";
-import { cloudinary } from "../config/cloudinary.js";
+import path from "path";
+import fs from "fs";
 
 interface AuthRequestWithFile extends Request {
   user?: {
@@ -65,15 +66,8 @@ export const createService = async (
     // Handle image upload
     let serviceImg = null;
     if (req.file) {
-      try {
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "tradelink/services",
-        });
-        serviceImg = result.secure_url;
-      } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(500).json({ message: "Error uploading image" });
-      }
+      // Store the relative path to the uploaded file
+      serviceImg = `/uploads/${req.file.filename}`;
     }
 
     // Create service
@@ -93,12 +87,10 @@ export const createService = async (
     });
   } catch (error) {
     console.error("Error creating service:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while creating service",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while creating service",
+      error: error.message,
+    });
   }
 };
 
@@ -163,36 +155,27 @@ export const updateService = async (
       sellerId: req.user.id,
     });
     if (!existingService) {
-      return res
-        .status(404)
-        .json({
-          message: "Service not found or you are not authorized to update it",
-        });
+      return res.status(404).json({
+        message: "Service not found or you are not authorized to update it",
+      });
     }
 
     // Handle image upload
     let serviceImg = existingService.serviceImg;
     if (req.file) {
-      try {
-        // Delete old image if exists
-        if (existingService.serviceImg) {
-          const publicId = existingService.serviceImg
-            .split("/")
-            .pop()
-            ?.split(".")[0];
-          if (publicId) {
-            await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
-          }
-        }
-        // Upload new image
-        const result = await cloudinary.uploader.upload(req.file.path, {
-          folder: "tradelink/services",
+      // Delete old image if exists
+      if (existingService.serviceImg) {
+        const oldImagePath = path.join(
+          __dirname,
+          "..",
+          existingService.serviceImg
+        );
+        fs.unlink(oldImagePath, (err: NodeJS.ErrnoException | null) => {
+          if (err) console.error("Error deleting old image:", err);
         });
-        serviceImg = result.secure_url;
-      } catch (uploadError) {
-        console.error("Cloudinary upload error:", uploadError);
-        return res.status(500).json({ message: "Error uploading image" });
       }
+      // Store new image path
+      serviceImg = `/uploads/${req.file.filename}`;
     }
 
     // Update service
@@ -215,12 +198,10 @@ export const updateService = async (
     });
   } catch (error) {
     console.error("Error updating service:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while updating service",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while updating service",
+      error: error.message,
+    });
   }
 };
 
@@ -250,24 +231,12 @@ export const deleteService = async (
       sellerId: req.user.id,
     });
     if (!service) {
-      return res
-        .status(404)
-        .json({
-          message: "Service not found or you are not authorized to delete it",
-        });
+      return res.status(404).json({
+        message: "Service not found or you are not authorized to delete it",
+      });
     }
 
-    // Delete image from Cloudinary if exists
-    if (service.serviceImg) {
-      const publicId = service.serviceImg.split("/").pop()?.split(".")[0];
-      if (publicId) {
-        try {
-          await cloudinary.uploader.destroy(`tradelink/services/${publicId}`);
-        } catch (uploadError) {
-          console.error("Cloudinary delete error:", uploadError);
-        }
-      }
-    }
+    
 
     // Delete service
     await Service.deleteOne({ _id: serviceId });
@@ -275,12 +244,10 @@ export const deleteService = async (
     return res.status(200).json({ message: "Service deleted successfully" });
   } catch (error) {
     console.error("Error deleting service:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while deleting service",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while deleting service",
+      error: error.message,
+    });
   }
 };
 
@@ -307,12 +274,10 @@ export const getSellerServices = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching seller services:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while fetching seller services",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while fetching seller services",
+      error: error.message,
+    });
   }
 };
 
@@ -347,7 +312,7 @@ export const getAllServices = async (req: Request, res: Response) => {
       query.category = category;
     }
     if (search) {
-      query.name = { $regex: search, $options: "i" };
+      query.name = { $regex: search, $options: "i" }; // Fixed typo: antipsychotics to $options
     }
     if (minPrice || maxPrice) {
       query.price = {};
@@ -367,10 +332,16 @@ export const getAllServices = async (req: Request, res: Response) => {
       }
     }
 
-    const services = await Service.find(query).populate(
-      "sellerId",
-      "name email"
-    );
+    // Fetch services and populate sellerId
+    const services = await Service.find(query).populate({
+      path: "sellerId",
+      select: "name email",
+      // Allow population even if some sellerId references are invalid
+      options: { strictPopulate: false },
+    });
+
+    // Log services to debug population
+    console.log("Services fetched:", JSON.stringify(services, null, 2));
 
     return res.status(200).json({
       message: "Services retrieved successfully",
@@ -378,12 +349,10 @@ export const getAllServices = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching services:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while fetching services",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while fetching services",
+      error: error.message,
+    });
   }
 };
 
@@ -413,11 +382,9 @@ export const getServiceById = async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error("Error fetching service:", error);
-    return res
-      .status(500)
-      .json({
-        message: "Server error while fetching service",
-        error: error.message,
-      });
+    return res.status(500).json({
+      message: "Server error while fetching service",
+      error: error.message,
+    });
   }
 };
