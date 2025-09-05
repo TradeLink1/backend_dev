@@ -1,75 +1,58 @@
+// controllers/serviceController.ts
 import { Request, Response } from "express";
 import mongoose from "mongoose";
-import { v2 as cloudinary } from "cloudinary";
 import Service from "../models/Service.js";
+import { v2 as cloudinary } from "cloudinary";
 
 interface AuthRequestWithFile extends Request {
   user?: {
-    _id: string;
+    id: string;
     role: string;
   };
-  file?: Express.Multer.File;
+  file?: Express.Multer.File; // file added by multer
 }
 
+// ---------------- CREATE SERVICE ----------------
 export const createService = async (
   req: AuthRequestWithFile,
   res: Response
 ) => {
   try {
-    // ✅ Authentication + Role check
     if (!req.user) {
-      return res.status(401).json({ message: "Not authenticated" });
-    }
-    if (req.user.role !== "seller") {
-      return res
-        .status(403)
-        .json({ message: "Only sellers can create services" });
+      return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const { name, price, category, duration, description } = req.body;
+    const { name, price, category, quantity, description } = req.body;
 
-    let serviceImgUrl: string | null = null;
+    if (!name || !price) {
+      return res.status(400).json({ message: "Name and price are required" });
+    }
 
-    // ✅ Upload file with stream if exists
+    let uploadedImg;
     if (req.file) {
-      serviceImgUrl = await new Promise<string>((resolve, reject) => {
-        const uploadStream = cloudinary.uploader.upload_stream(
-          { folder: "tradelink/services" },
-          (error, result) => {
-            if (error) {
-              reject(error);
-            } else if (result) {
-              resolve(result.secure_url);
-            } else {
-              reject(new Error("Cloudinary upload failed with no result"));
-            }
-          }
-        );
-        uploadStream.end(req.file!.buffer); // <-- TS now knows req.file exists here
+      uploadedImg = await cloudinary.uploader.upload(req.file.path, {
+        folder: "tradelink/services",
       });
     }
 
-    // ✅ Create service document
-    const newService = new Service({
-      sellerId: new mongoose.Types.ObjectId(req.user._id),
+    const newService = await Service.create({
+      sellerId: req.user.id,
       name,
       price,
       category,
-      duration,
+      quantity,
       description,
-      serviceImg: serviceImgUrl,
+      serviceImg: uploadedImg?.secure_url || null,
+      serviceImgId: uploadedImg?.public_id || null,
     });
 
-    const savedService = await newService.save();
-
     res.status(201).json({
-      success: true,
       message: "Service created successfully",
-      service: savedService,
+      data: newService,
     });
   } catch (error) {
     console.error("Error creating service:", error);
-    res.status(500).json({ message: "Error creating service", error });
+    res.status(500).json({ message: "Server error", error });
   }
 };
 
