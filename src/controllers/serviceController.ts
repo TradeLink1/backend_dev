@@ -26,10 +26,60 @@ const uploadToCloudinary = (fileBuffer: Buffer, folder: string) => {
   });
 };
 
+export const createService = async (
+  req: AuthRequestWithFile,
+  res: Response
+) => {
+  try {
+    const { name, price, category, duration, description } = req.body;
+
+    const sellerId = req.user?._id;
+    if (!sellerId) {
+      return res.status(401).json({ message: "Not authenticated as a seller" });
+    }
+
+    let serviceImgUrl = null;
+
+    if (req.file) {
+      const result = await cloudinary.uploader.upload(
+        `data:${req.file.mimetype};base64,${req.file.buffer.toString(
+          "base64"
+        )}`,
+        {
+          folder: "tradelink/services",
+        }
+      );
+      serviceImgUrl = result.secure_url;
+    }
+
+    const newService = new Service({
+      sellerId: new mongoose.Types.ObjectId(sellerId),
+      name,
+      price,
+      category,
+      duration,
+      description,
+      serviceImg: serviceImgUrl,
+    });
+
+    const savedService = await newService.save();
+
+    res.status(201).json({
+      success: true,
+      message: "Service created successfully",
+      service: savedService,
+    });
+  } catch (error) {
+    console.error("Error creating service:", error);
+    res.status(500).json({ message: "Failed to create service" });
+  }
+};
+
+
 /**
  * Create a new service (Seller only)
  */
-export const createService = async (
+/*export const createService = async (
   req: AuthRequestWithFile,
   res: Response
 ) => {
@@ -111,7 +161,7 @@ export const createService = async (
       error: error.message,
     });
   }
-};
+}; */
 
 /**
  * Update an existing service (Seller only)
